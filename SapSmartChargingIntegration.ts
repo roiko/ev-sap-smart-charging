@@ -1,9 +1,10 @@
 import Axios from 'axios';
 import moment from 'moment';
 import BackendError from '../../../exception/BackendError';
-import { Action } from '../../../types/Authorization';
+import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
 import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, ChargingRateUnitType, ChargingSchedule, Profile } from '../../../types/ChargingProfile';
 import { Connector } from '../../../types/ChargingStation';
+import { ServerAction } from '../../../types/Server';
 import { ChargePointStatus } from '../../../types/ocpp/OCPPServer';
 import { OptimizerCar, OptimizerCarAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStation, OptimizerEvent, OptimizerFuse, OptimizerFuseTree, OptimizerResult, OptimizerState } from '../../../types/Optimizer';
 import { SapSmartChargingSetting } from '../../../types/Setting';
@@ -11,12 +12,11 @@ import SiteArea from '../../../types/SiteArea';
 import Constants from '../../../utils/Constants';
 import Cypher from '../../../utils/Cypher';
 import Logging from '../../../utils/Logging';
-import SmartCharging from '../SmartCharging';
-import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
+import SmartChargingIntegration from '../SmartChargingIntegration';
 
 const MODULE_NAME = 'SapSmartCharging';
 
-export default class SapSmartCharging extends SmartCharging<SapSmartChargingSetting> {
+export default class SapSmartChargingIntegration extends SmartChargingIntegration<SapSmartChargingSetting> {
   public constructor(tenantID: string, setting: SapSmartChargingSetting) {
     super(tenantID, setting);
   }
@@ -37,7 +37,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
       if (response.status !== 200 && response.status !== 202) {
         throw new BackendError({
           source: Constants.CENTRAL_SERVER,
-          action: Action.SMART_CHARGING,
+          action: ServerAction.SMART_CHARGING,
           message: `SAP Smart Charging service responded with status '${response.status}' '${response.statusText}'`,
           module: MODULE_NAME, method: 'checkConnection',
           detailedMessages: { response }
@@ -46,7 +46,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
     } catch (error) {
       throw new BackendError({
         source: Constants.CENTRAL_SERVER,
-        action: Action.SMART_CHARGING,
+        action: ServerAction.SMART_CHARGING,
         message: `SAP Smart Charging service responded with '${error}'`,
         module: MODULE_NAME, method: 'checkConnection',
         detailedMessages: { error: error.message, stack: error.stack }
@@ -58,7 +58,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
     Logging.logDebug({
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
-      action: Action.SMART_CHARGING,
+      action: ServerAction.SMART_CHARGING,
       message: 'Build Charging Profiles is being called',
       module: MODULE_NAME, method: 'buildChargingProfiles',
       detailedMessages: { siteArea }
@@ -90,7 +90,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
       if (response.status !== 200 && response.status !== 202) {
         throw new BackendError({
           source: Constants.CENTRAL_SERVER,
-          action: Action.SMART_CHARGING,
+          action: ServerAction.SMART_CHARGING,
           message: `SAP Smart Charging service responded with status '${response.status}' '${response.statusText}'`,
           module: MODULE_NAME, method: 'buildChargingProfiles',
           detailedMessages: { response }
@@ -99,7 +99,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
       Logging.logDebug({
         tenantID: this.tenantID,
         source: Constants.CENTRAL_SERVER,
-        action: Action.SMART_CHARGING,
+        action: ServerAction.SMART_CHARGING,
         message: 'SAP Smart Charging service has been called',
         module: MODULE_NAME, method: 'buildChargingProfiles',
         detailedMessages: { status: response.status, response: response.data }
@@ -109,7 +109,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
       Logging.logDebug({
         tenantID: this.tenantID,
         source: Constants.CENTRAL_SERVER,
-        action: Action.SMART_CHARGING,
+        action: ServerAction.SMART_CHARGING,
         message: 'Charging Profiles have been built',
         module: MODULE_NAME, method: 'buildChargingProfiles',
         detailedMessages: { chargingProfiles }
@@ -119,7 +119,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
       Logging.logError({
         tenantID: this.tenantID,
         source: Constants.CENTRAL_SERVER,
-        action: Action.SMART_CHARGING,
+        action: ServerAction.SMART_CHARGING,
         module: MODULE_NAME, method: 'buildChargingProfiles',
         message: 'Unable to call the SAP Smart Charging service',
         detailedMessages: { error: error.message, stack: error.stack },
@@ -138,7 +138,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
     if (!url || !user || !password) {
       throw new BackendError({
         source: Constants.CENTRAL_SERVER,
-        action: Action.SMART_CHARGING,
+        action: ServerAction.SMART_CHARGING,
         message: 'SAP Smart Charging service configuration is incorrect',
         module: MODULE_NAME, method: 'getChargingProfiles',
       });
@@ -151,7 +151,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
     Logging.logDebug({
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
-      action: Action.SMART_CHARGING,
+      action: ServerAction.SMART_CHARGING,
       message: 'Build SAP Smart Charging request is being called',
       module: MODULE_NAME, method: 'buildRequest',
       detailedMessages: {
@@ -170,7 +170,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
     if (!siteArea.maximumPower) {
       throw new BackendError({
         source: Constants.CENTRAL_SERVER,
-        action: Action.SMART_CHARGING,
+        action: ServerAction.SMART_CHARGING,
         module: MODULE_NAME, method: 'buildRequest',
         message: `Maximum Power property is not set for Site Area '${siteArea.name}'`
       });
@@ -188,7 +188,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
     if (!siteArea.chargingStations) {
       throw new BackendError({
         source: Constants.CENTRAL_SERVER,
-        action: Action.SMART_CHARGING,
+        action: ServerAction.SMART_CHARGING,
         module: MODULE_NAME, method: 'buildRequest',
         message: `No Charging Stations found in Site Area '${siteArea.name}'`
       });
@@ -249,7 +249,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
     Logging.logDebug({
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
-      action: Action.SMART_CHARGING,
+      action: ServerAction.SMART_CHARGING,
       message: 'Build SAP Smart Charging request has been called',
       module: MODULE_NAME, method: 'buildRequest',
       detailedMessages: { request }
@@ -349,7 +349,7 @@ export default class SapSmartCharging extends SmartCharging<SapSmartChargingSett
       if (!chargingStation) {
         throw new BackendError({
           source: chargingStationID,
-          action: Action.SMART_CHARGING,
+          action: ServerAction.SMART_CHARGING,
           module: MODULE_NAME, method: 'buildChargingProfilesFromOptimizer',
           message: 'Charging Station not found'
         });
