@@ -14,7 +14,7 @@ import Cypher from '../../../utils/Cypher';
 import Logging from '../../../utils/Logging';
 import SmartChargingIntegration from '../SmartChargingIntegration';
 
-const MODULE_NAME = 'SapSmartCharging';
+const MODULE_NAME = 'SapSmartChargingIntegration';
 
 export default class SapSmartChargingIntegration extends SmartChargingIntegration<SapSmartChargingSetting> {
   public constructor(tenantID: string, setting: SapSmartChargingSetting) {
