@@ -335,7 +335,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       for (let i = Math.floor(currentTimeMinutes / 15); i < Math.floor(currentTimeMinutes / 15) + 3; i++) {
         chargingSchedule.chargingSchedulePeriod.push({
           startPeriod: currentTimeSlot * 15 * 60,
-          limit: Math.trunc(car.currentPlan[i] * 3)
+          limit: Math.trunc(car.currentPlan[i])
         });
         currentTimeSlot++;
       }
