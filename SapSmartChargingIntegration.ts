@@ -1,18 +1,19 @@
-import Axios from 'axios';
-import moment from 'moment';
-import BackendError from '../../../exception/BackendError';
-import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
 import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, ChargingRateUnitType, ChargingSchedule, Profile } from '../../../types/ChargingProfile';
-import { Connector } from '../../../types/ChargingStation';
-import { ServerAction } from '../../../types/Server';
-import { ChargePointStatus } from '../../../types/ocpp/OCPPServer';
 import { OptimizerCar, OptimizerCarAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStation, OptimizerEvent, OptimizerFuse, OptimizerFuseTree, OptimizerResult, OptimizerState } from '../../../types/Optimizer';
-import { SapSmartChargingSetting } from '../../../types/Setting';
-import SiteArea from '../../../types/SiteArea';
+
+import Axios from 'axios';
+import BackendError from '../../../exception/BackendError';
+import { ChargePointStatus } from '../../../types/ocpp/OCPPServer';
+import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
+import { Connector } from '../../../types/ChargingStation';
 import Constants from '../../../utils/Constants';
 import Cypher from '../../../utils/Cypher';
 import Logging from '../../../utils/Logging';
+import { SapSmartChargingSetting } from '../../../types/Setting';
+import { ServerAction } from '../../../types/Server';
+import SiteArea from '../../../types/SiteArea';
 import SmartChargingIntegration from '../SmartChargingIntegration';
+import moment from 'moment';
 
 const MODULE_NAME = 'SapSmartChargingIntegration';
 
@@ -288,6 +289,9 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       fusePhase1: connector.amperage,
       fusePhase2: ((connector.numberOfConnectedPhase > 1) ? connector.amperage : 0),
       fusePhase3: ((connector.numberOfConnectedPhase > 1) ? connector.amperage : 0),
+      phase1Connected: true,
+      phase2Connected: ((connector.numberOfConnectedPhase > 1) ? true : false),
+      phase3Connected: ((connector.numberOfConnectedPhase > 1) ? true : false),
     };
     return chargingStation;
   }
@@ -313,6 +317,9 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       fusePhase1: sumConnectorAmperagePhase1,
       fusePhase2: sumConnectorAmperagePhase2,
       fusePhase3: sumConnectorAmperagePhase3,
+      phase1Connected: true,
+      phase2Connected: ((sumConnectorAmperagePhase2 > 0) ? true : false),
+      phase3Connected: ((sumConnectorAmperagePhase3 > 0) ? true : false),
       children: chargingStationChildren,
     };
     return chargingStationFuse;
