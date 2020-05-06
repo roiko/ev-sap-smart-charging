@@ -176,13 +176,19 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         message: `Maximum Power property is not set for Site Area '${siteArea.name}'`
       });
     }
+    if (!siteArea.numberOfConnectedPhases) {
+      siteArea.numberOfConnectedPhases = 3;
+    }
     // Create root fuse
     const rootFuse: OptimizerFuse = {
       '@type': 'Fuse',
       id: 0,
-      fusePhase1: (siteArea.maximumPower / 230) / 3,
-      fusePhase2: (siteArea.maximumPower / 230) / 3,
-      fusePhase3: (siteArea.maximumPower / 230) / 3,
+      fusePhase1: siteArea.numberOfConnectedPhases === 1 ? siteArea.maximumPower / 230 : (siteArea.maximumPower / 230) / 3,
+      fusePhase2: siteArea.numberOfConnectedPhases === 1 ? 0 : (siteArea.maximumPower / 230) / 3,
+      fusePhase3: siteArea.numberOfConnectedPhases === 1 ? 0 : (siteArea.maximumPower / 230) / 3,
+      phase1Connected: true,
+      phase2Connected: siteArea.numberOfConnectedPhases === 1 ? false : true,
+      phase3Connected: siteArea.numberOfConnectedPhases === 1 ? false : true,
       children: [],
     };
     // Charging Stations
