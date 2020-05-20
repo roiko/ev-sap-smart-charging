@@ -292,9 +292,9 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     const chargingStation: OptimizerChargingStation = {
       '@type': 'ChargingStation',
       id: connectorIndex,
-      fusePhase1: connector.amperage,
-      fusePhase2: ((connector.numberOfConnectedPhase > 1) ? connector.amperage : 0),
-      fusePhase3: ((connector.numberOfConnectedPhase > 1) ? connector.amperage : 0),
+      fusePhase1: connector.amperage / 3,
+      fusePhase2: ((connector.numberOfConnectedPhase > 1) ? connector.amperage / 3 : 0),
+      fusePhase3: ((connector.numberOfConnectedPhase > 1) ? connector.amperage / 3 : 0),
       phase1Connected: true,
       phase2Connected: ((connector.numberOfConnectedPhase > 1) ? true : false),
       phase3Connected: ((connector.numberOfConnectedPhase > 1) ? true : false),
