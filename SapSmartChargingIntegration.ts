@@ -13,6 +13,7 @@ import { SapSmartChargingSetting } from '../../../types/Setting';
 import { ServerAction } from '../../../types/Server';
 import SiteArea from '../../../types/SiteArea';
 import SmartChargingIntegration from '../SmartChargingIntegration';
+import Utils from '../../../utils/Utils';
 import moment from 'moment';
 
 const MODULE_NAME = 'SapSmartChargingIntegration';
@@ -368,7 +369,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         });
       }
       const connectorId = parseInt(chargingStationDetails[1]);
-      const connector = chargingStation.connectors[connectorId - 1];
+      const connector = Utils.getChargingStationConnectorFromID(chargingStation, connectorId);
+      const chargePoint = Utils.getChargingStationChargePointFromID(chargingStation, connector.chargePointID);
       // Build profile of charging profile
       const profile: Profile = {
         chargingProfileId: connectorId,
@@ -382,6 +384,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       const chargingProfile: ChargingProfile = {
         chargingStationID: chargingStationID,
         connectorID: connectorId,
+        chargePointID: chargePoint.chargePointID,
         profile: profile
       };
       // Resolve id for charging station and connector from helper array
