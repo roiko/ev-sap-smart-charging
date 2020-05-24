@@ -369,8 +369,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         });
       }
       const connectorId = parseInt(chargingStationDetails[1]);
-      const connector = Utils.getChargingStationConnectorFromID(chargingStation, connectorId);
-      const chargePoint = Utils.getChargingStationChargePointFromID(chargingStation, connector.chargePointID);
+      const connector = Utils.getConnectorFromID(chargingStation, connectorId);
+      const chargePoint = Utils.getConnectorFromID(chargingStation, connector.chargePointID);
       // Build profile of charging profile
       const profile: Profile = {
         chargingProfileId: connectorId,
