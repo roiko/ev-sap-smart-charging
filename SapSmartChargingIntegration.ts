@@ -325,7 +325,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         tenantID: this.tenantID,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.SMART_CHARGING,
-        message: `Site Area limit of ${siteArea.maximumPower} W has been lowered to ${siteMaxAmps * siteArea.voltage} W due to unsupported charging stations currently being used`,
+        message: `Site Area limit of ${siteArea.maximumPower} W has been lowered to ${Math.round(siteMaxAmps * siteArea.voltage)} W due to unsupported charging stations currently being used`,
         module: MODULE_NAME, method: 'adjustSiteLimitation',
         detailedMessages: { siteArea }
       });
