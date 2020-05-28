@@ -281,40 +281,38 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     let siteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     for (let i = siteArea.chargingStations.length - 1; i >= 0; i--) {
       const chargingStation = siteArea.chargingStations[i];
+      const chargePointIDsAlreadyProcessed = [];
+      const chargingStationVoltage = Utils.getChargingStationVoltage(chargingStation);
+      // Handle charging station does not support smart charging
       if (chargingStation.excludeFromSmartCharging) {
-        let totalChargingStationAmps = 0;
         // Remove charging station
         siteArea.chargingStations.splice(i, 1);
-        // Take the total power of used connector/charge point
-        if (chargingStation.chargePoints) {
-          for (const chargePoint of chargingStation.chargePoints) {
-            const chargePointAmps = Utils.getChargingStationAmperage(chargingStation, chargePoint);
-            if (!chargePointAmps) {
-              throw new BackendError({
-                source: chargingStation.id,
-                action: ServerAction.SMART_CHARGING,
-                module: MODULE_NAME, method: 'adjustSiteLimitation',
-                message: `Charge Point ID '${chargePoint.chargePointID}' has no amperage`,
-                detailedMessages: { chargePoint, chargingStation }
-              });
+        // Remove the power of the whole charging station
+        siteMaxAmps -= (chargingStation.maximumPower / chargingStationVoltage);
+      // Handle charge point does not support smart charging
+      } else {
+        // Only connectors which charge are in this list
+        for (let j = chargingStation.connectors.length - 1; j >= 0; j--) {
+          const connector = chargingStation.connectors[j];
+          if (connector.chargePointID) {
+            const chargePoint = Utils.getChargePointFromID(chargingStation, connector.chargePointID);
+            if (chargePoint.excludeFromPowerLimitation &&
+               !chargePointIDsAlreadyProcessed.includes(chargePoint.chargePointID)) {
+              // Remove the power of the connector
+              const connectorAmperage = Utils.getChargingStationAmperage(chargingStation, chargePoint);
+              siteMaxAmps -= connectorAmperage;
+              // Remove the connector
+              chargingStation.connectors.splice(j, 1);
+              // Do not process the same charge point
+              chargePointIDsAlreadyProcessed.push(chargePoint.chargePointID);
             }
-            totalChargingStationAmps += chargePointAmps;
-          }
-        } else {
-          for (const connector of chargingStation.connectors) {
-            if (!connector.amperage) {
-              throw new BackendError({
-                source: chargingStation.id,
-                action: ServerAction.SMART_CHARGING,
-                module: MODULE_NAME, method: 'adjustSiteLimitation',
-                message: `Connector ID '${connector.connectorId}' has no amperage`,
-                detailedMessages: { connector, chargingStation }
-              });
-            }
-            totalChargingStationAmps += connector.amperage;
           }
         }
-        siteMaxAmps -= totalChargingStationAmps;
+        // Check if there are remaining connectors
+        if (chargingStation.connectors.length === 0) {
+          // Remove charging station
+          siteArea.chargingStations.splice(i, 1);
+        }
       }
     }
     // Ensure always positive
