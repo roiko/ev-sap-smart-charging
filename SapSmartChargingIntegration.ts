@@ -1,6 +1,6 @@
 import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, ChargingRateUnitType, ChargingSchedule, Profile } from '../../../types/ChargingProfile';
 import ChargingStation, { ChargePoint, Connector, StaticLimitAmps } from '../../../types/ChargingStation';
-import { ConnectorPower, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerEvent, OptimizerFuse, OptimizerFuseTree, OptimizerResult, OptimizerState } from '../../../types/Optimizer';
+import { ConnectorPower, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
 
 import Axios from 'axios';
 import BackendError from '../../../exception/BackendError';
@@ -399,7 +399,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
           }
           // Already several connectors charging in //
           if (chargePoint.cannotChargeInParallel && numberOfConnectorsCurrentlyCharging > 1) {
-            // Annilate the power of the connector
+            // Annihilate the power of the connector
             connectorPower.totalAmps = 0;
           }
         }
