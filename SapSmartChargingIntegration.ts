@@ -335,7 +335,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   private buildCar(fuseIndex: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
-    const voltage = Utils.getChargingStationVoltage(chargingStation, transaction.connectorId);
+    const voltage = Utils.getChargingStationVoltage(chargingStation);
     // Build 'Safe' car
     const car: OptimizerCar = {
       canLoadPhase1: 1, // 3 phases car
