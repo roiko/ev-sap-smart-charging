@@ -349,8 +349,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       startCapacity: transaction.currentTotalConsumption / voltage, // Total consumption in Amp.h
       minCurrent: StaticLimitAmps.MIN_LIMIT,
       minCurrentPerPhase: StaticLimitAmps.MIN_LIMIT / 3,
-      maxCurrent: 96, // Fixed like Renault Zoe (22kW)
-      maxCurrentPerPhase: 96 / 3,
+      maxCurrent: 1000, // Fixed like Renault Zoe (22kW)
+      maxCurrentPerPhase: 1000 / 3,
       suspendable: true,
       immediateStart: false,
       canUseVariablePower: true,
