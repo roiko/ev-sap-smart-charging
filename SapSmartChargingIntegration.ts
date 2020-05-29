@@ -59,14 +59,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   public async buildChargingProfiles(siteArea: SiteArea): Promise<ChargingProfile[]> {
-    Logging.logDebug({
-      tenantID: this.tenantID,
-      source: Constants.CENTRAL_SERVER,
-      action: ServerAction.SMART_CHARGING,
-      message: 'Build Charging Profiles is being called',
-      module: MODULE_NAME, method: 'buildChargingProfiles',
-      detailedMessages: { siteArea }
-    });
     // Get seconds since midnight
     const currentDurationFromMidnightSeconds = moment().diff(moment().startOf('day'), 'seconds');
     // Get the Charging Stations of the site area with status charging and preparing
@@ -108,18 +100,18 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.SMART_CHARGING,
-      message: 'SAP Smart Charging service has been called',
+      message: 'SAP Smart Charging service has been called successfully',
       module: MODULE_NAME, method: 'buildChargingProfiles',
-      detailedMessages: { status: response.status, response: response.data }
+      detailedMessages: { response: response.data }
     });
     // Build charging profiles from result
     const chargingProfiles = await this.buildChargingProfilesFromOptimizerResponse(
-      response.data, (currentDurationFromMidnightSeconds / 60));
+      response.data, currentDurationFromMidnightSeconds / 60);
     Logging.logDebug({
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.SMART_CHARGING,
-      message: 'Charging Profiles have been built',
+      message: 'Charging Profiles have been built successfully',
       module: MODULE_NAME, method: 'buildChargingProfiles',
       detailedMessages: { chargingProfiles }
     });
@@ -147,19 +139,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   private async buildOptimizerRequest(siteArea: SiteArea, currentTimeSeconds: number): Promise<OptimizerChargingProfilesRequest> {
-    Logging.logDebug({
-      tenantID: this.tenantID,
-      source: Constants.CENTRAL_SERVER,
-      action: ServerAction.SMART_CHARGING,
-      message: 'Build SAP Smart Charging request is being called',
-      module: MODULE_NAME, method: 'buildOptimizerRequest',
-      detailedMessages: {
-        siteAreaName: siteArea.name,
-        siteAreaMaximumPower: siteArea.maximumPower,
-        chargingStations: siteArea.chargingStations ?
-          siteArea.chargingStations.map((chargingStation) => chargingStation.id) : []
-      }
-    });
     // Instantiate initial arrays for request
     const cars: OptimizerCar[] = [];
     const carConnectorAssignments: OptimizerCarConnectorAssignment[] = [];
@@ -238,14 +217,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         carAssignments: carConnectorAssignments,
       },
     };
-    Logging.logDebug({
-      tenantID: this.tenantID,
-      source: Constants.CENTRAL_SERVER,
-      action: ServerAction.SMART_CHARGING,
-      message: 'Build SAP Smart Charging request has been called',
-      module: MODULE_NAME, method: 'buildOptimizerRequest',
-      detailedMessages: { request }
-    });
     return request;
   }
 
@@ -349,8 +320,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       startCapacity: transaction.currentTotalConsumption / voltage, // Total consumption in Amp.h
       minCurrent: StaticLimitAmps.MIN_LIMIT,
       minCurrentPerPhase: StaticLimitAmps.MIN_LIMIT / 3,
-      maxCurrent: 1000, // Fixed like Renault Zoe (22kW)
-      maxCurrentPerPhase: 1000 / 3,
+      maxCurrent: 96, // Charge capability in Amps
+      maxCurrentPerPhase: 96 / 3, // Charge capability in Amps per phase
       suspendable: true,
       immediateStart: false,
       canUseVariablePower: true,
