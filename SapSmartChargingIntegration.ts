@@ -307,6 +307,10 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
 
   private buildCar(fuseIndex: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
+    let currentSoc = 0.5;
+    if (transaction.currentStateOfCharge) {
+      currentSoc = transaction.currentStateOfCharge / 100;
+    }
     // Build 'Safe' car
     const car: OptimizerCar = {
       canLoadPhase1: 1, // 3 phases car
@@ -316,12 +320,12 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       timestampArrival: 0,
       carType: 'BEV',
       maxCapacity: 100 * 1000 / voltage, // Battery capacity in Amp.h (fixed to 100kW.h)
-      minLoadingState: 100 * 1000 / voltage * 0.5, // Current battery level in Amp.h set at 50% (fixed to 50kW.h)
+      minLoadingState: (100 * 1000 / voltage) * currentSoc, // Current battery level in Amp.h set at 50% (fixed to 50kW.h)
       startCapacity: transaction.currentTotalConsumption / voltage, // Total consumption in Amp.h
       minCurrent: StaticLimitAmps.MIN_LIMIT,
       minCurrentPerPhase: StaticLimitAmps.MIN_LIMIT / 3,
-      maxCurrent: 96, // Charge capability in Amps
-      maxCurrentPerPhase: 96 / 3, // Charge capability in Amps per phase
+      maxCurrent: 3000, // Charge capability in Amps
+      maxCurrentPerPhase: 3000 / 3, // Charge capability in Amps per phase
       suspendable: true,
       immediateStart: false,
       canUseVariablePower: true,
