@@ -27,13 +27,14 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
 
   public async checkConnection() {
     const siteArea = {
+      name: 'Dummy Site Area',
       maximumPower: 10000,
       chargingStations: [],
     } as SiteArea;
     try {
       const request = await this.buildOptimizerRequest(siteArea, 0);
       // Call Optimizer
-      const response = await Axios.post(this.buildOptimizerUrl(), request, {
+      const response = await Axios.post(this.buildOptimizerUrl(siteArea), request, {
         headers: {
           Accept: 'application/json',
         }
@@ -42,7 +43,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         throw new BackendError({
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.SMART_CHARGING,
-          message: `SAP Smart Charging service responded with status '${response.status}' '${response.statusText}'`,
+          message: `${siteArea.name} > SAP Smart Charging service responded with status '${response.status}' '${response.statusText}'`,
           module: MODULE_NAME, method: 'checkConnection',
           detailedMessages: { response }
         });
@@ -51,7 +52,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       throw new BackendError({
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.SMART_CHARGING,
-        message: `SAP Smart Charging service responded with '${error}'`,
+        message: `${siteArea.name} > SAP Smart Charging service responded with '${error}'`,
         module: MODULE_NAME, method: 'checkConnection',
         detailedMessages: { error: error.message, stack: error.stack }
       });
@@ -72,12 +73,12 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     siteArea.chargingStations = chargingStations.result;
     const request = await this.buildOptimizerRequest(siteArea, currentDurationFromMidnightSeconds);
     // Call optimizer
-    const url = this.buildOptimizerUrl();
+    const url = this.buildOptimizerUrl(siteArea);
     Logging.logDebug({
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.SMART_CHARGING,
-      message: 'Call the SAP Smart Charging service...',
+      message: `${siteArea.name} > Call the SAP Smart Charging service...`,
       module: MODULE_NAME, method: 'buildChargingProfiles',
       detailedMessages: { url, request }
     });
@@ -91,7 +92,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       throw new BackendError({
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.SMART_CHARGING,
-        message: `SAP Smart Charging service responded with status '${response.status}' '${response.statusText}'`,
+        message: `${siteArea.name} > SAP Smart Charging service responded with status '${response.status}' '${response.statusText}'`,
         module: MODULE_NAME, method: 'buildChargingProfiles',
         detailedMessages: { response }
       });
@@ -100,25 +101,25 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.SMART_CHARGING,
-      message: 'SAP Smart Charging service has been called successfully',
+      message: `${siteArea.name} > SAP Smart Charging service has been called successfully`,
       module: MODULE_NAME, method: 'buildChargingProfiles',
       detailedMessages: { response: response.data }
     });
     // Build charging profiles from result
     const chargingProfiles = await this.buildChargingProfilesFromOptimizerResponse(
-      response.data, currentDurationFromMidnightSeconds / 60);
+      siteArea, response.data, currentDurationFromMidnightSeconds / 60);
     Logging.logDebug({
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.SMART_CHARGING,
-      message: 'Charging Profiles have been built successfully',
+      message: `${siteArea.name} > Charging Profiles have been built successfully`,
       module: MODULE_NAME, method: 'buildChargingProfiles',
       detailedMessages: { chargingProfiles }
     });
     return chargingProfiles;
   }
 
-  private buildOptimizerUrl(): string {
+  private buildOptimizerUrl(siteArea: SiteArea): string {
     // Build URL
     const url = this.setting.optimizerUrl;
     const user = this.setting.user;
@@ -130,7 +131,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       throw new BackendError({
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.SMART_CHARGING,
-        message: 'SAP Smart Charging service configuration is incorrect',
+        message: `${siteArea.name} > SAP Smart Charging service configuration is incorrect`,
         module: MODULE_NAME, method: 'getChargingProfiles',
       });
     }
@@ -172,9 +173,9 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       // Loop through connectors to generate Cars, charging stations and car assignments for request
       for (const connector of chargingStation.connectors) {
         // Get the transaction
-        const transaction = await this.getTransactionFromChargingConnector(chargingStation, connector);
+        const transaction = await this.getTransactionFromChargingConnector(siteArea, chargingStation, connector);
         // Build connector fuse
-        const chargingStationConnectorFuse = this.buildChargingStationConnectorFuse(fuseIndex, chargingStation, connector);
+        const chargingStationConnectorFuse = this.buildChargingStationConnectorFuse(siteArea, fuseIndex, chargingStation, connector);
         if (!chargingStationConnectorFuse) {
           continue;
         }
@@ -220,7 +221,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return request;
   }
 
-  private async getTransactionFromChargingConnector(chargingStation: ChargingStation, connector: Connector): Promise<Transaction> {
+  private async getTransactionFromChargingConnector(siteArea: SiteArea, chargingStation: ChargingStation, connector: Connector): Promise<Transaction> {
     // Transaction in pogress?
     if (!connector.activeTransactionID) {
       // Should not happen
@@ -228,7 +229,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         source: chargingStation.id,
         action: ServerAction.SMART_CHARGING,
         module: MODULE_NAME, method: 'getTransactionFromChargingConnector',
-        message: `No active transaction on connector ID '${connector.connectorId}'`,
+        message: `${siteArea.name} > No active transaction on connector ID '${connector.connectorId}'`,
         detailedMessages: { connector, chargingStation }
       });
     }
@@ -240,7 +241,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         source: chargingStation.id,
         action: ServerAction.SMART_CHARGING,
         module: MODULE_NAME, method: 'getTransactionFromChargingConnector',
-        message: `Active transaction ID '${connector.activeTransactionID}' on connector ID '${connector.connectorId}' not found!`,
+        message: `${siteArea.name} > Active transaction ID '${connector.activeTransactionID}' on connector ID '${connector.connectorId}' not found!`,
         detailedMessages: { connector, chargingStation }
       });
     }
@@ -296,7 +297,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         tenantID: this.tenantID,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.SMART_CHARGING,
-        message: `Site Area limit of ${siteArea.maximumPower} W has been lowered to ${Math.round(siteMaxAmps * siteArea.voltage)} W due to unsupported charging stations currently being used`,
+        message: `${siteArea.name} > limit of ${siteArea.maximumPower} W has been lowered to ${Math.round(siteMaxAmps * siteArea.voltage)} W due to unsupported charging stations currently being used`,
         module: MODULE_NAME, method: 'adjustSiteLimitation',
         detailedMessages: { siteArea }
       });
@@ -341,7 +342,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       connector.status === ChargePointStatus.OCCUPIED;
   }
 
-  private getConnectorNbrOfPhasesAndAmps(chargingStation: ChargingStation, connector: Connector): ConnectorPower {
+  private getConnectorNbrOfPhasesAndAmps(siteArea: SiteArea, chargingStation: ChargingStation, connector: Connector): ConnectorPower {
     const connectorPower: ConnectorPower = {
       numberOfConnectedPhase: 0,
       totalAmps: 0
@@ -388,7 +389,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         source: chargingStation.id,
         action: ServerAction.SMART_CHARGING,
         module: MODULE_NAME, method: 'getConnectorNbrOfPhasesAndAmps',
-        message: `Cannot get the number of phases of connector ID '${connector.connectorId}'`,
+        message: `${siteArea.name} > Cannot get the number of phases of connector ID '${connector.connectorId}'`,
         detailedMessages: { connector, chargingStation }
       });
     }
@@ -397,16 +398,16 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         source: chargingStation.id,
         action: ServerAction.SMART_CHARGING,
         module: MODULE_NAME, method: 'getConnectorNbrOfPhasesAndAmps',
-        message: `Cannot get the amperage of connector ID '${connector.connectorId}'`,
+        message: `${siteArea.name} > Cannot get the amperage of connector ID '${connector.connectorId}'`,
         detailedMessages: { connector, chargingStation }
       });
     }
     return connectorPower;
   }
 
-  private buildChargingStationConnectorFuse(fuseIndex: number, chargingStation: ChargingStation, connector: Connector): OptimizerChargingStationConnectorFuse {
+  private buildChargingStationConnectorFuse(siteArea: SiteArea, fuseIndex: number, chargingStation: ChargingStation, connector: Connector): OptimizerChargingStationConnectorFuse {
     // Get connector's power
-    const connectorPower = this.getConnectorNbrOfPhasesAndAmps(chargingStation, connector);
+    const connectorPower = this.getConnectorNbrOfPhasesAndAmps(siteArea, chargingStation, connector);
     const connectorAmpsPerPhase = connectorPower.totalAmps / connectorPower.numberOfConnectedPhase;
     // Build charging station from connector
     const chargingStationConnectorFuse: OptimizerChargingStationConnectorFuse = {
@@ -442,7 +443,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return chargingStationFuse;
   }
 
-  private async buildChargingProfilesFromOptimizerResponse(optimizerResult: OptimizerResult, currentDurationFromMidnightMins: number): Promise<ChargingProfile[]> {
+  private async buildChargingProfilesFromOptimizerResponse(siteArea: SiteArea, optimizerResult: OptimizerResult, currentDurationFromMidnightMins: number): Promise<ChargingProfile[]> {
     const chargingProfiles: ChargingProfile[] = [];
     // Get the last full 15 minutes to set begin of charging profile
     const startSchedule = new Date();
@@ -464,7 +465,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
           source: chargingStationID,
           action: ServerAction.SMART_CHARGING,
           module: MODULE_NAME, method: 'buildChargingProfilesFromOptimizerResponse',
-          message: 'Charging Station not found'
+          message: `${siteArea.name} > Charging Station not found`
         });
       }
       const connector = Utils.getConnectorFromID(chargingStation, connectorID);
