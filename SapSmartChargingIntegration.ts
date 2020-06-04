@@ -144,8 +144,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     const cars: OptimizerCar[] = [];
     const carConnectorAssignments: OptimizerCarConnectorAssignment[] = [];
     // Create indices to generate IDs in number format
-    let fuseID = 1; // Start at 1 because root fuse will have ID=0
-    let fuseIndex = 0; // Connector Index to give IDs of format: number
+    let fuseID = 0;
     this.checkIfSiteAreaIsValid(siteArea);
     // Adjust site limitation
     this.adjustSiteLimitation(siteArea);
@@ -154,7 +153,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     const siteMaxAmpsPerPhase = siteMaxAmps / siteArea.numberOfPhases;
     const rootFuse: OptimizerFuse = {
       '@type': 'Fuse',
-      id: 0,
+      id: fuseID,
       fusePhase1: siteMaxAmpsPerPhase,
       fusePhase2: siteArea.numberOfPhases > 1 ? siteMaxAmpsPerPhase : 0,
       fusePhase3: siteArea.numberOfPhases > 1 ? siteMaxAmpsPerPhase : 0,
@@ -175,7 +174,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         // Get the transaction
         const transaction = await this.getTransactionFromChargingConnector(siteArea, chargingStation, connector);
         // Build connector fuse
-        const chargingStationConnectorFuse = this.buildChargingStationConnectorFuse(siteArea, fuseIndex, chargingStation, connector);
+        const chargingStationConnectorFuse = this.buildChargingStationConnectorFuse(siteArea, fuseID, chargingStation, connector);
         if (!chargingStationConnectorFuse) {
           continue;
         }
@@ -185,14 +184,14 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         sumConnectorAmperagePhase2 += chargingStationConnectorFuse.fusePhase2;
         sumConnectorAmperagePhase3 += chargingStationConnectorFuse.fusePhase3;
         // Build car
-        const car = this.buildCar(fuseIndex, chargingStation, transaction);
+        const car = this.buildCar(fuseID, chargingStation, transaction);
         cars.push(car);
         // Assign car to the connector
         carConnectorAssignments.push({
-          carID: fuseIndex,
-          chargingStationID: fuseIndex // It's a connector but for the optimizer this is a Charging Station
+          carID: fuseID,
+          chargingStationID: fuseID // It's a connector but for the optimizer this is a Charging Station
         });
-        fuseIndex++;
+        fuseID++;
       } // End for of connectors
       // Build Charging Station fuse
       const chargingStationFuse = this.buildChargingStationFuse(
@@ -306,7 +305,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     }
   }
 
-  private buildCar(fuseIndex: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
+  private buildCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
     let currentSoc = 0.5;
     if (transaction.currentStateOfCharge) {
@@ -317,7 +316,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       canLoadPhase1: 1, // 3 phases car
       canLoadPhase2: 1,
       canLoadPhase3: 1,
-      id: fuseIndex,
+      id: fuseID,
       timestampArrival: 0,
       carType: 'BEV',
       maxCapacity: 100 * 1000 / voltage, // Battery capacity in Amp.h (fixed to 100kW.h)
@@ -405,14 +404,14 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return connectorPower;
   }
 
-  private buildChargingStationConnectorFuse(siteArea: SiteArea, fuseIndex: number, chargingStation: ChargingStation, connector: Connector): OptimizerChargingStationConnectorFuse {
+  private buildChargingStationConnectorFuse(siteArea: SiteArea, fuseID: number, chargingStation: ChargingStation, connector: Connector): OptimizerChargingStationConnectorFuse {
     // Get connector's power
     const connectorPower = this.getConnectorNbrOfPhasesAndAmps(siteArea, chargingStation, connector);
     const connectorAmpsPerPhase = connectorPower.totalAmps / connectorPower.numberOfConnectedPhase;
     // Build charging station from connector
     const chargingStationConnectorFuse: OptimizerChargingStationConnectorFuse = {
       '@type': 'ChargingStation', // It's connector but for the optimizer this is a Charging Station
-      id: fuseIndex,
+      id: fuseID,
       fusePhase1: connectorAmpsPerPhase,
       fusePhase2: (connectorPower.numberOfConnectedPhase > 1 ? connectorAmpsPerPhase : 0),
       fusePhase3: (connectorPower.numberOfConnectedPhase > 1 ? connectorAmpsPerPhase : 0),
@@ -423,7 +422,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return chargingStationConnectorFuse;
   }
 
-  private buildChargingStationFuse(fuseIndex: number,
+  private buildChargingStationFuse(fuseID: number,
     sumConnectorAmperagePhase1: number, sumConnectorAmperagePhase2: number, sumConnectorAmperagePhase3: number,
     chargingStationConnectorsFuse: OptimizerChargingStationConnectorFuse[]): OptimizerChargingStationFuse {
     // Each charging station can have multiple connectors (= charge points)
@@ -431,7 +430,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     // A charging station's connectors are modelled as its 'children'
     const chargingStationFuse: OptimizerChargingStationFuse = {
       '@type': 'Fuse',
-      id: fuseIndex,
+      id: fuseID,
       fusePhase1: sumConnectorAmperagePhase1,
       fusePhase2: sumConnectorAmperagePhase2,
       fusePhase3: sumConnectorAmperagePhase3,
