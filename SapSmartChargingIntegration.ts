@@ -1,22 +1,22 @@
+import Axios from 'axios';
+import moment from 'moment';
+
+import BackendError from '../../../exception/BackendError';
+import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
+import TransactionStorage from '../../../storage/mongodb/TransactionStorage';
 import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, ChargingRateUnitType, ChargingSchedule, Profile } from '../../../types/ChargingProfile';
 import ChargingStation, { ChargePoint, Connector, StaticLimitAmps } from '../../../types/ChargingStation';
-import { ConnectorPower, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
-
-import Axios from 'axios';
-import BackendError from '../../../exception/BackendError';
 import { ChargePointStatus } from '../../../types/ocpp/OCPPServer';
-import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
+import { ConnectorPower, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
+import { ServerAction } from '../../../types/Server';
+import { SapSmartChargingSetting } from '../../../types/Setting';
+import SiteArea from '../../../types/SiteArea';
+import Transaction from '../../../types/Transaction';
 import Constants from '../../../utils/Constants';
 import Cypher from '../../../utils/Cypher';
 import Logging from '../../../utils/Logging';
-import { SapSmartChargingSetting } from '../../../types/Setting';
-import { ServerAction } from '../../../types/Server';
-import SiteArea from '../../../types/SiteArea';
-import SmartChargingIntegration from '../SmartChargingIntegration';
-import Transaction from '../../../types/Transaction';
-import TransactionStorage from '../../../storage/mongodb/TransactionStorage';
 import Utils from '../../../utils/Utils';
-import moment from 'moment';
+import SmartChargingIntegration from '../SmartChargingIntegration';
 
 const MODULE_NAME = 'SapSmartChargingIntegration';
 
@@ -153,7 +153,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     const siteMaxAmpsPerPhase = siteMaxAmps / siteArea.numberOfPhases;
     const rootFuse: OptimizerFuse = {
       '@type': 'Fuse',
-      id: fuseID,
+      id: fuseID++,
       fusePhase1: siteMaxAmpsPerPhase,
       fusePhase2: siteArea.numberOfPhases > 1 ? siteMaxAmpsPerPhase : 0,
       fusePhase3: siteArea.numberOfPhases > 1 ? siteMaxAmpsPerPhase : 0,
