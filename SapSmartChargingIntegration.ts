@@ -222,7 +222,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
 
   private async getTransactionFromChargingConnector(siteArea: SiteArea, chargingStation: ChargingStation, connector: Connector): Promise<Transaction> {
     // Transaction in pogress?
-    if (!connector.activeTransactionID) {
+    if (!connector.currentTransactionID) {
       // Should not happen
       throw new BackendError({
         source: chargingStation.id,
@@ -233,14 +233,14 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       });
     }
     // Get the transaction
-    const transaction = await TransactionStorage.getTransaction(this.tenantID, connector.activeTransactionID);
+    const transaction = await TransactionStorage.getTransaction(this.tenantID, connector.currentTransactionID);
     if (!transaction) {
       // Should not happen
       throw new BackendError({
         source: chargingStation.id,
         action: ServerAction.SMART_CHARGING,
         module: MODULE_NAME, method: 'getTransactionFromChargingConnector',
-        message: `${siteArea.name} > Active transaction ID '${connector.activeTransactionID}' on connector ID '${connector.connectorId}' not found!`,
+        message: `${siteArea.name} > Active transaction ID '${connector.currentTransactionID}' on connector ID '${connector.connectorId}' not found!`,
         detailedMessages: { connector, chargingStation }
       });
     }
@@ -321,7 +321,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       carType: 'BEV',
       maxCapacity: 100 * 1000 / voltage, // Battery capacity in Amp.h (fixed to 100kW.h)
       minLoadingState: (100 * 1000 / voltage) * currentSoc, // Current battery level in Amp.h set at 50% (fixed to 50kW.h)
-      startCapacity: transaction.currentTotalConsumption / voltage, // Total consumption in Amp.h
+      startCapacity: transaction.currentTotalConsumptionWh / voltage, // Total consumption in Amp.h
       minCurrent: StaticLimitAmps.MIN_LIMIT,
       minCurrentPerPhase: StaticLimitAmps.MIN_LIMIT / 3,
       maxCurrent: 3000, // Charge capability in Amps
@@ -495,7 +495,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         chargingProfileId: connectorID,
         chargingProfileKind: ChargingProfileKindType.ABSOLUTE,
         chargingProfilePurpose: ChargingProfilePurposeType.TX_PROFILE, // Profile with constraints to be imposed by the Charge Point on the current transaction. A profile with this purpose SHALL cease to be valid when the transaction terminates.
-        transactionId: connector.activeTransactionID,
+        transactionId: connector.currentTransactionID,
         stackLevel: 2, // Value determining level in hierarchy stack of profiles. Higher values have precedence over lower values. Lowest level is 0.
         chargingSchedule: chargingSchedule
       };
