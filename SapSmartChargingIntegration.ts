@@ -483,7 +483,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       chargingSchedule.chargingSchedulePeriod = [];
       chargingSchedule.startSchedule = startSchedule;
       // Start from now up to the third slot
-      for (let i = Math.floor(currentDurationFromMidnightMins / 15); i < Math.floor(currentDurationFromMidnightMins / 15) + 3; i++) {
+      for (let i = Math.floor(currentDurationFromMidnightMins / 15); i < car.currentPlan.length && car.currentPlan[i] > 0; i++) {
         chargingSchedule.chargingSchedulePeriod.push({
           startPeriod: currentTimeSlotMins * 15 * 60, // Start period in secs (starts at 0 sec from startSchedule date/time)
           limit: Math.trunc(car.currentPlan[i] * numberOfConnectedPhase)
