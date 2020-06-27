@@ -1,5 +1,5 @@
 import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, ChargingRateUnitType, ChargingSchedule, Profile } from '../../../types/ChargingProfile';
-import ChargingStation, { ChargePoint, Connector, StaticLimitAmps } from '../../../types/ChargingStation';
+import ChargingStation, { ChargePoint, Connector, CurrentType, StaticLimitAmps } from '../../../types/ChargingStation';
 import { ConnectorPower, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
 
 import Axios from 'axios';
@@ -306,15 +306,26 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   private buildCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
     const numberOfPhases = Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId);
+    const currentType = Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId);
+    const maxConnectorAmps = Utils.getChargingStationAmperage(chargingStation, null, transaction.connectorId);
+    // Handle the SoC if provided (only DC chargers)
     let currentSoc = 0.5;
     if (transaction.currentStateOfCharge) {
       currentSoc = transaction.currentStateOfCharge / 100;
     }
-    // Build 'Safe' car
+    // Auto detect the number of phases of the car
+    let threePhasesCar = true;
+    if (currentType === CurrentType.AC &&
+        transaction.currentInstantAmpsL1 > 0 &&
+        transaction.currentInstantAmpsL2 === 0 &&
+        transaction.currentInstantAmpsL3 === 0) {
+      threePhasesCar = false;
+    }
+    // Build a 'Safe' car
     const car: OptimizerCar = {
       canLoadPhase1: 1, // 3 phases car
-      canLoadPhase2: 1,
-      canLoadPhase3: 1,
+      canLoadPhase2: threePhasesCar ? 1 : 0,
+      canLoadPhase3: threePhasesCar ? 1 : 0,
       id: fuseID,
       timestampArrival: 0,
       carType: 'BEV',
@@ -323,8 +334,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       startCapacity: transaction.currentTotalConsumptionWh / voltage, // Total consumption in Amp.h
       minCurrent: StaticLimitAmps.MIN_LIMIT_PER_PHASE * numberOfPhases,
       minCurrentPerPhase: StaticLimitAmps.MIN_LIMIT_PER_PHASE,
-      maxCurrent: 3000, // Charge capability in Amps
-      maxCurrentPerPhase: 3000 / 3, // Charge capability in Amps per phase
+      maxCurrent: maxConnectorAmps, // Charge capability in Amps
+      maxCurrentPerPhase: maxConnectorAmps / numberOfPhases, // Charge capability in Amps per phase
       suspendable: true,
       immediateStart: false,
       canUseVariablePower: true,
