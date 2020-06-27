@@ -306,7 +306,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   private buildCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
     const numberOfPhases = Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId);
-    const currentType = Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId);
     const maxConnectorAmps = Utils.getChargingStationAmperage(chargingStation, null, transaction.connectorId);
     // Handle the SoC if provided (only DC chargers)
     let currentSoc = 0.5;
@@ -314,13 +313,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       currentSoc = transaction.currentStateOfCharge / 100;
     }
     // Auto detect the number of phases of the car
-    let threePhasesCar = true;
-    if (currentType === CurrentType.AC &&
-        transaction.currentInstantAmpsL1 > 0 &&
-        transaction.currentInstantAmpsL2 === 0 &&
-        transaction.currentInstantAmpsL3 === 0) {
-      threePhasesCar = false;
-    }
+    const threePhasesCar = Utils.isTransactionInProgressOnThreePhases(chargingStation, transaction);
     // Build a 'Safe' car
     const car: OptimizerCar = {
       canLoadPhase1: 1, // 3 phases car
@@ -334,7 +327,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       startCapacity: transaction.currentTotalConsumptionWh / voltage, // Total consumption in Amp.h
       minCurrent: StaticLimitAmps.MIN_LIMIT_PER_PHASE * numberOfPhases,
       minCurrentPerPhase: StaticLimitAmps.MIN_LIMIT_PER_PHASE,
-      maxCurrent: maxConnectorAmps, // Charge capability in Amps
+      maxCurrent: threePhasesCar ? maxConnectorAmps : (maxConnectorAmps / numberOfPhases), // Charge capability in Amps
       maxCurrentPerPhase: maxConnectorAmps / numberOfPhases, // Charge capability in Amps per phase
       suspendable: true,
       immediateStart: false,
