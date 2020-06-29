@@ -34,6 +34,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       voltage: 230
     } as SiteArea;
     try {
+      // Build Optimizer request
       const request = await this.buildOptimizerRequest(siteArea, 0);
       // Call Optimizer
       const response = await Axios.post(this.buildOptimizerUrl(siteArea), request, {
@@ -72,6 +73,18 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     const request = await this.buildOptimizerRequest(siteArea, currentDurationFromMidnightSeconds);
     // Call optimizer
     const url = this.buildOptimizerUrl(siteArea);
+    // Check at least one car
+    if (request.state.cars.length === 0) {
+      Logging.logDebug({
+        tenantID: this.tenantID,
+        source: Constants.CENTRAL_SERVER,
+        action: ServerAction.SMART_CHARGING,
+        message: `${siteArea.name} > No car connected so no need to call the SAP Smart Charging service`,
+        module: MODULE_NAME, method: 'buildChargingProfiles',
+        detailedMessages: { request }
+      });
+      return;
+    }
     Logging.logDebug({
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
@@ -211,8 +224,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
           rootFuse: rootFuse,
         },
         cars: cars,
-        currentTimeSeconds: currentTimeSeconds,
         carAssignments: carConnectorAssignments,
+        currentTimeSeconds: currentTimeSeconds,
       },
     };
     return request;
