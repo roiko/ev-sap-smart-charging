@@ -325,7 +325,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       maxCapacity: 100 * 1000 / voltage, // Battery capacity in Amp.h (fixed to 100kW.h)
       minLoadingState: (100 * 1000 / voltage) * currentSoc, // Current battery level in Amp.h set at 50% (fixed to 50kW.h)
       startCapacity: transaction.currentTotalConsumptionWh / voltage, // Total consumption in Amp.h
-      minCurrent: StaticLimitAmps.MIN_LIMIT_PER_PHASE * numberOfPhases,
+      minCurrent: threePhasesCar ? (StaticLimitAmps.MIN_LIMIT_PER_PHASE * numberOfPhases) : StaticLimitAmps.MIN_LIMIT_PER_PHASE,
       minCurrentPerPhase: StaticLimitAmps.MIN_LIMIT_PER_PHASE,
       maxCurrent: threePhasesCar ? maxConnectorAmps : (maxConnectorAmps / numberOfPhases), // Charge capability in Amps
       maxCurrentPerPhase: maxConnectorAmps / numberOfPhases, // Charge capability in Amps per phase
