@@ -1,5 +1,5 @@
 import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, ChargingRateUnitType, ChargingSchedule, Profile } from '../../../types/ChargingProfile';
-import ChargingStation, { ChargePoint, Connector, CurrentType, StaticLimitAmps } from '../../../types/ChargingStation';
+import ChargingStation, { ChargePoint, Connector, StaticLimitAmps } from '../../../types/ChargingStation';
 import { ConnectorPower, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
 
 import Axios from 'axios';
@@ -25,7 +25,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     super(tenantID, setting);
   }
 
-  public async checkConnection() {
+  public async checkConnection(): Promise<void> {
     const siteArea = {
       name: 'Dummy Site Area',
       maximumPower: 10000,
@@ -232,7 +232,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   private async getTransactionFromChargingConnector(siteArea: SiteArea, chargingStation: ChargingStation, connector: Connector): Promise<Transaction> {
-    // Transaction in pogress?
+    // Transaction in progress?
     if (!connector.currentTransactionID) {
       // Should not happen
       throw new BackendError({
@@ -265,7 +265,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       const chargingStation = siteArea.chargingStations[i];
       const chargePointIDsAlreadyProcessed = [];
       const chargingStationVoltage = Utils.getChargingStationVoltage(chargingStation);
-      // Handle charging station does not support smart charging
+      // Handle charging station that does not support smart charging
       if (chargingStation.excludeFromSmartCharging) {
         // Remove charging station
         siteArea.chargingStations.splice(i, 1);
@@ -383,7 +383,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
           }
         }
         // Should be at least 1
-        if (numberOfConnectorsCurrentlyCharging) {
+        if (numberOfConnectorsCurrentlyCharging >= 1) {
           // Already several connectors to share energy with
           if (chargePoint.sharePowerToAllConnectors) {
             connectorPower.totalAmps /= numberOfConnectorsCurrentlyCharging;
