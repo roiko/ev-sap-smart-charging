@@ -330,8 +330,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     // Build a 'Safe' car
     const car: OptimizerCar = {
       canLoadPhase1: 1, // 3 phases car
-      canLoadPhase2: threePhasesCar ? 1 : 0,
-      canLoadPhase3: threePhasesCar ? 1 : 0,
+      canLoadPhase2: numberOfPhases === 1 ? 0 : (threePhasesCar ? 1 : 0),
+      canLoadPhase3: numberOfPhases === 1 ? 0 : (threePhasesCar ? 1 : 0),
       id: fuseID,
       timestampArrival: 0,
       carType: 'BEV',
