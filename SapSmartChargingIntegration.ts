@@ -333,7 +333,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       canLoadPhase2: numberOfPhases === 1 ? 0 : (threePhasesCar ? 1 : 0),
       canLoadPhase3: numberOfPhases === 1 ? 0 : (threePhasesCar ? 1 : 0),
       id: fuseID,
-      timestampArrival: 0,
+      timestampArrival: moment(transaction.timestamp).diff(moment().startOf('day'), 'seconds'), // Arrival timestamp in seconds from midnight
+      timestampDeparture: 62100, // Mock timestamp departure (17:15) - recommendation from Oliver
       carType: 'BEV',
       maxCapacity: 100 * 1000 / voltage, // Battery capacity in Amp.h (fixed to 100kW.h)
       minLoadingState: (100 * 1000 / voltage) * currentSoc, // Current battery level in Amp.h set at 50% (fixed to 50kW.h)
