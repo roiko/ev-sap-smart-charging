@@ -2,7 +2,6 @@ import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, C
 import ChargingStation, { ChargePoint, Connector, StaticLimitAmps } from '../../../types/ChargingStation';
 import { ConnectorPower, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
 
-import Axios from 'axios';
 import BackendError from '../../../exception/BackendError';
 import { ChargePointStatus } from '../../../types/ocpp/OCPPServer';
 import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
@@ -16,6 +15,8 @@ import SmartChargingIntegration from '../SmartChargingIntegration';
 import Transaction from '../../../types/Transaction';
 import TransactionStorage from '../../../storage/mongodb/TransactionStorage';
 import Utils from '../../../utils/Utils';
+import axios from 'axios';
+import axiosRetry from 'axios-retry';
 import moment from 'moment';
 
 const MODULE_NAME = 'SapSmartChargingIntegration';
@@ -23,6 +24,7 @@ const MODULE_NAME = 'SapSmartChargingIntegration';
 export default class SapSmartChargingIntegration extends SmartChargingIntegration<SapSmartChargingSetting> {
   public constructor(tenantID: string, setting: SapSmartChargingSetting) {
     super(tenantID, setting);
+    axiosRetry(axios, { retryDelay: axiosRetry.exponentialDelay.bind(this) });
   }
 
   public async checkConnection(): Promise<void> {
@@ -37,7 +39,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       // Build Optimizer request
       const request = await this.buildOptimizerRequest(siteArea, 0);
       // Call Optimizer
-      const response = await Axios.post(this.buildOptimizerUrl(siteArea), request, {
+      const response = await axios.post(this.buildOptimizerUrl(siteArea), request, {
         headers: {
           Accept: 'application/json',
         }
@@ -94,7 +96,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       detailedMessages: { url, request }
     });
     // Call Optimizer
-    const response = await Axios.post(url, request, {
+    const response = await axios.post(url, request, {
       headers: {
         Accept: 'application/json',
       }
