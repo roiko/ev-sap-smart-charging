@@ -53,15 +53,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         // Handle errors
         Utils.handleAxiosError(error, optimizerURL, ServerAction.SMART_CHARGING, MODULE_NAME, 'checkConnection');
       }
-      if (response.status !== 200 && response.status !== 202) {
-        throw new BackendError({
-          source: Constants.CENTRAL_SERVER,
-          action: ServerAction.SMART_CHARGING,
-          message: `${siteArea.name} > SAP Smart Charging service responded with status '${response.status}' '${response.statusText}'`,
-          module: MODULE_NAME, method: 'checkConnection',
-          detailedMessages: { response }
-        });
-      }
     } catch (error) {
       throw new BackendError({
         source: Constants.CENTRAL_SERVER,
@@ -115,15 +106,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     } catch (error) {
       // Handle errors
       Utils.handleAxiosError(error, url, ServerAction.SMART_CHARGING, MODULE_NAME, 'buildChargingProfiles');
-    }
-    if (response.status !== 200 && response.status !== 202) {
-      throw new BackendError({
-        source: Constants.CENTRAL_SERVER,
-        action: ServerAction.SMART_CHARGING,
-        message: `${siteArea.name} > SAP Smart Charging service responded with status '${response.status}' '${response.statusText}'`,
-        module: MODULE_NAME, method: 'buildChargingProfiles',
-        detailedMessages: { response }
-      });
     }
     Logging.logDebug({
       tenantID: this.tenantID,
