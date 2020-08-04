@@ -501,7 +501,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       const maxScheduleLength = parseInt(await ChargingStationStorage.getOcppParameterValue(this.tenantID, chargingStationID, 'ChargingScheduleMaxPeriods'));
 
       // Start from now up to the third slot
-      for (let i = Math.floor(currentDurationFromMidnightMins / 15); i < (!isNaN(maxScheduleLength) ? (i + maxScheduleLength) : i + 20) &&
+      for (let i = Math.floor(currentDurationFromMidnightMins / 15); i < (!isNaN(maxScheduleLength) ?
+        (Math.floor(currentDurationFromMidnightMins / 15) + maxScheduleLength) : Math.floor(currentDurationFromMidnightMins / 15) + 20) &&
       chargingSchedule.chargingSchedulePeriod.length < car.currentPlan.length &&
       (car.currentPlan[i] > 0 || chargingSchedule.chargingSchedulePeriod.length < 3); i++) {
         chargingSchedule.chargingSchedulePeriod.push({
