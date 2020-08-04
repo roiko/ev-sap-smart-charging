@@ -496,8 +496,13 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       chargingSchedule.chargingRateUnit = ChargingRateUnitType.AMPERE;
       chargingSchedule.chargingSchedulePeriod = [];
       chargingSchedule.startSchedule = startSchedule;
+
+      // Get OCPP Parameter for max periods
+      const maxScheduleLength = parseInt(await ChargingStationStorage.getOcppParameterValue(this.tenantID, chargingStationID, 'ChargingScheduleMaxPeriods'));
+
       // Start from now up to the third slot
-      for (let i = Math.floor(currentDurationFromMidnightMins / 15); i < car.currentPlan.length && (car.currentPlan[i] > 0 || chargingSchedule.chargingSchedulePeriod.length < 3); i++) {
+      for (let i = Math.floor(currentDurationFromMidnightMins / 15); i <= (!isNaN(maxScheduleLength) ? maxScheduleLength : 20) &&
+      (car.currentPlan[i] > 0 || chargingSchedule.chargingSchedulePeriod.length < 3); i++) {
         chargingSchedule.chargingSchedulePeriod.push({
           startPeriod: currentTimeSlotMins * 15 * 60, // Start period in secs (starts at 0 sec from startSchedule date/time)
           limit: Math.trunc(car.currentPlan[i] * numberOfConnectedPhase)
