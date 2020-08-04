@@ -26,7 +26,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
 
   public constructor(tenantID: string, setting: SapSmartChargingSetting) {
     super(tenantID, setting);
-    this.axiosInstance = AxiosFactory.getAxiosInstance();
+    this.axiosInstance = AxiosFactory.getAxiosInstance(this.tenantID);
   }
 
   public async checkConnection(): Promise<void> {
