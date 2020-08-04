@@ -503,7 +503,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       // Start from now up to the third slot
       for (let i = Math.floor(currentDurationFromMidnightMins / 15); i < (!isNaN(maxScheduleLength) ?
         (Math.floor(currentDurationFromMidnightMins / 15) + maxScheduleLength) : Math.floor(currentDurationFromMidnightMins / 15) + 20) &&
-      chargingSchedule.chargingSchedulePeriod.length < car.currentPlan.length &&
+      i < car.currentPlan.length &&
       (car.currentPlan[i] > 0 || chargingSchedule.chargingSchedulePeriod.length < 3); i++) {
         chargingSchedule.chargingSchedulePeriod.push({
           startPeriod: currentTimeSlotMins * 15 * 60, // Start period in secs (starts at 0 sec from startSchedule date/time)
