@@ -1,4 +1,4 @@
-import { AxiosInstance, AxiosResponse } from 'axios';
+import { AxiosInstance } from 'axios';
 import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, ChargingRateUnitType, ChargingSchedule, Profile } from '../../../types/ChargingProfile';
 import ChargingStation, { ChargePoint, Connector, StaticLimitAmps } from '../../../types/ChargingStation';
 import { ConnectorPower, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
@@ -41,18 +41,12 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       // Build Optimizer request
       const request = await this.buildOptimizerRequest(siteArea, 0);
       // Call Optimizer
-      let response: AxiosResponse;
       const optimizerURL = this.buildOptimizerUrl(siteArea);
-      try {
-        response = await this.axiosInstance.post(optimizerURL, request, {
-          headers: {
-            Accept: 'application/json',
-          }
-        });
-      } catch (error) {
-        // Handle errors
-        Utils.handleAxiosError(error, optimizerURL, ServerAction.SMART_CHARGING, MODULE_NAME, 'checkConnection');
-      }
+      await this.axiosInstance.post(optimizerURL, request, {
+        headers: {
+          Accept: 'application/json',
+        }
+      });
     } catch (error) {
       throw new BackendError({
         source: Constants.CENTRAL_SERVER,
@@ -95,18 +89,12 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       module: MODULE_NAME, method: 'buildChargingProfiles',
       detailedMessages: { url, request }
     });
-    let response: AxiosResponse;
-    try {
-      // Call Optimizer
-      response = await this.axiosInstance.post(url, request, {
-        headers: {
-          Accept: 'application/json',
-        }
-      });
-    } catch (error) {
-      // Handle errors
-      Utils.handleAxiosError(error, url, ServerAction.SMART_CHARGING, MODULE_NAME, 'buildChargingProfiles');
-    }
+    // Call Optimizer
+    const response = await this.axiosInstance.post(url, request, {
+      headers: {
+        Accept: 'application/json',
+      }
+    });
     Logging.logDebug({
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
