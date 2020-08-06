@@ -305,20 +305,24 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
 
   private buildCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
-    const numberOfPhases = Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId);
+    let numberOfPhases = Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId);
     const maxConnectorAmps = Utils.getChargingStationAmperage(chargingStation, null, transaction.connectorId);
+    const maxConnectorAmpsPerPhase = maxConnectorAmps / numberOfPhases;
     // Handle the SoC if provided (only DC chargers)
     let currentSoc = 0.5;
     if (transaction.currentStateOfCharge) {
       currentSoc = transaction.currentStateOfCharge / 100;
     }
-    // Auto detect the number of phases of the car
-    const threePhasesCar = Utils.isTransactionInProgressOnThreePhases(chargingStation, transaction);
+    // Get the really used number of phases
+    const usedNbrOfPhases = Utils.getNumberOfUsedPhaseInTransactionInProgress(chargingStation, transaction);
+    if (usedNbrOfPhases > 0) {
+      numberOfPhases = usedNbrOfPhases;
+    }
     // Build a 'Safe' car
     const car: OptimizerCar = {
-      canLoadPhase1: 1, // 3 phases car
-      canLoadPhase2: numberOfPhases === 1 ? 0 : (threePhasesCar ? 1 : 0),
-      canLoadPhase3: numberOfPhases === 1 ? 0 : (threePhasesCar ? 1 : 0),
+      canLoadPhase1: transaction.currentInstantAmpsL1 > 0 ? 1 : 0,
+      canLoadPhase2: transaction.currentInstantAmpsL2 > 0 ? 1 : 0,
+      canLoadPhase3: transaction.currentInstantAmpsL3 > 0 ? 1 : 0,
       id: fuseID,
       timestampArrival: moment(transaction.timestamp).diff(moment().startOf('day'), 'seconds'), // Arrival timestamp in seconds from midnight
       timestampDeparture: 62100, // Mock timestamp departure (17:15) - recommendation from Oliver
@@ -326,10 +330,10 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       maxCapacity: 100 * 1000 / voltage, // Battery capacity in Amp.h (fixed to 100kW.h)
       minLoadingState: (100 * 1000 / voltage) * currentSoc, // Current battery level in Amp.h set at 50% (fixed to 50kW.h)
       startCapacity: transaction.currentTotalConsumptionWh / voltage, // Total consumption in Amp.h
-      minCurrent: threePhasesCar ? (StaticLimitAmps.MIN_LIMIT_PER_PHASE * numberOfPhases) : StaticLimitAmps.MIN_LIMIT_PER_PHASE,
+      minCurrent: (numberOfPhases > 0) ? (StaticLimitAmps.MIN_LIMIT_PER_PHASE * numberOfPhases) : StaticLimitAmps.MIN_LIMIT_PER_PHASE,
       minCurrentPerPhase: StaticLimitAmps.MIN_LIMIT_PER_PHASE,
-      maxCurrent: threePhasesCar ? maxConnectorAmps : (maxConnectorAmps / numberOfPhases), // Charge capability in Amps
-      maxCurrentPerPhase: maxConnectorAmps / numberOfPhases, // Charge capability in Amps per phase
+      maxCurrent: (numberOfPhases > 0) ? maxConnectorAmpsPerPhase * numberOfPhases : maxConnectorAmps, // Charge capability in Amps
+      maxCurrentPerPhase: maxConnectorAmpsPerPhase, // Charge capability in Amps per phase
       suspendable: true,
       immediateStart: false,
       canUseVariablePower: true,
