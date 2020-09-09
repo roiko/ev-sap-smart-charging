@@ -1,9 +1,9 @@
-import { AxiosInstance } from 'axios';
 import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, ChargingRateUnitType, ChargingSchedule, Profile } from '../../../types/ChargingProfile';
 import ChargingStation, { ChargePoint, Connector, StaticLimitAmps } from '../../../types/ChargingStation';
 import { ConnectorPower, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
 
 import AxiosFactory from '../../../utils/AxiosFactory';
+import { AxiosInstance } from 'axios';
 import BackendError from '../../../exception/BackendError';
 import { ChargePointStatus } from '../../../types/ocpp/OCPPServer';
 import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
@@ -320,9 +320,9 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     }
     // Build a 'Safe' car
     const car: OptimizerCar = {
-      canLoadPhase1: transaction.currentInstantAmpsL1 > 0 ? 1 : 0,
-      canLoadPhase2: transaction.currentInstantAmpsL2 > 0 ? 1 : 0,
-      canLoadPhase3: transaction.currentInstantAmpsL3 > 0 ? 1 : 0,
+      canLoadPhase1: usedNbrOfPhases > 0 ? (transaction.currentInstantAmpsL1 > 0 ? 1 : 0) : 1,
+      canLoadPhase2: usedNbrOfPhases > 0 ? (transaction.currentInstantAmpsL2 > 0 ? 1 : 0) : (numberOfPhases > 1 ? 1 : 0),
+      canLoadPhase3: usedNbrOfPhases > 0 ? (transaction.currentInstantAmpsL3 > 0 ? 1 : 0) : (numberOfPhases > 2 ? 1 : 0),
       id: fuseID,
       timestampArrival: moment(transaction.timestamp).diff(moment().startOf('day'), 'seconds'), // Arrival timestamp in seconds from midnight
       timestampDeparture: 62100, // Mock timestamp departure (17:15) - recommendation from Oliver
