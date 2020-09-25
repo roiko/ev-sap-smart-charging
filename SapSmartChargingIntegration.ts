@@ -313,16 +313,16 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     if (transaction.currentStateOfCharge) {
       currentSoc = transaction.currentStateOfCharge / 100;
     }
-    // Get the really used number of phases
-    const usedNbrOfPhases = Utils.getNumberOfUsedPhaseInTransactionInProgress(chargingStation, transaction);
-    if (usedNbrOfPhases > 0) {
-      numberOfPhases = usedNbrOfPhases;
+    // Get the number of really used phases
+    const numberOfUsedPhases = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
+    if (numberOfUsedPhases !== -1) {
+      numberOfPhases = numberOfUsedPhases;
     }
     // Build a 'Safe' car
     const car: OptimizerCar = {
-      canLoadPhase1: usedNbrOfPhases > 0 ? (transaction.currentInstantAmpsL1 > 0 ? 1 : 0) : 1,
-      canLoadPhase2: usedNbrOfPhases > 0 ? (transaction.currentInstantAmpsL2 > 0 ? 1 : 0) : (numberOfPhases > 1 ? 1 : 0),
-      canLoadPhase3: usedNbrOfPhases > 0 ? (transaction.currentInstantAmpsL3 > 0 ? 1 : 0) : (numberOfPhases > 2 ? 1 : 0),
+      canLoadPhase1: transaction.phasesUsed ? (transaction.phasesUsed.csPhase1 ? 1 : 0) : 1,
+      canLoadPhase2: transaction.phasesUsed ? (transaction.phasesUsed.csPhase2 ? 1 : 0) : 1,
+      canLoadPhase3: transaction.phasesUsed ? (transaction.phasesUsed.csPhase3 ? 1 : 0) : 1,
       id: fuseID,
       timestampArrival: moment(transaction.timestamp).diff(moment().startOf('day'), 'seconds'), // Arrival timestamp in seconds from midnight
       timestampDeparture: 62100, // Mock timestamp departure (17:15) - recommendation from Oliver
@@ -332,7 +332,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       startCapacity: transaction.currentTotalConsumptionWh / voltage, // Total consumption in Amp.h
       minCurrent: (numberOfPhases > 0) ? (StaticLimitAmps.MIN_LIMIT_PER_PHASE * numberOfPhases) : StaticLimitAmps.MIN_LIMIT_PER_PHASE,
       minCurrentPerPhase: StaticLimitAmps.MIN_LIMIT_PER_PHASE,
-      maxCurrent: (numberOfPhases > 0) ? maxConnectorAmpsPerPhase * numberOfPhases : maxConnectorAmps, // Charge capability in Amps
+      maxCurrent: (numberOfPhases > 0) ? (maxConnectorAmpsPerPhase * numberOfPhases) : maxConnectorAmps, // Charge capability in Amps
       maxCurrentPerPhase: maxConnectorAmpsPerPhase, // Charge capability in Amps per phase
       suspendable: true,
       immediateStart: false,
