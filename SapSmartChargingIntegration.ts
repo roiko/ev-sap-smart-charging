@@ -182,7 +182,14 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         sumConnectorAmperagePhase2 += chargingStationConnectorFuse.fusePhase2;
         sumConnectorAmperagePhase3 += chargingStationConnectorFuse.fusePhase3;
         // Build car
-        const car = this.buildCar(fuseID, chargingStation, transaction);
+        let car = {} as OptimizerCar;
+        if (transaction.phasesUsed) {
+          car = this.overrideCarWithRuntimeData(fuseID, chargingStation, transaction);
+        } else {
+          // If Car ID is provided - build custom car (tbd with handling car PR)
+          car = this.buildSaveCar(fuseID, chargingStation, transaction);
+        }
+
         cars.push(car);
         // Assign car to the connector
         carConnectorAssignments.push({
@@ -303,26 +310,21 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     }
   }
 
-  private buildCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
+  private buildSaveCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
-    let numberOfPhases = Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId);
     const maxConnectorAmps = Utils.getChargingStationAmperage(chargingStation, null, transaction.connectorId);
+    const numberOfPhases = Utils.getNumberOfConnectedPhases(chargingStation);
     const maxConnectorAmpsPerPhase = maxConnectorAmps / numberOfPhases;
     // Handle the SoC if provided (only DC chargers)
     let currentSoc = 0.5;
     if (transaction.currentStateOfCharge) {
       currentSoc = transaction.currentStateOfCharge / 100;
     }
-    // Get the number of really used phases
-    const numberOfUsedPhases = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
-    if (numberOfUsedPhases !== -1) {
-      numberOfPhases = numberOfUsedPhases;
-    }
     // Build a 'Safe' car
     const car: OptimizerCar = {
-      canLoadPhase1: transaction.phasesUsed ? (transaction.phasesUsed.csPhase1 ? 1 : 0) : 1,
-      canLoadPhase2: transaction.phasesUsed ? (transaction.phasesUsed.csPhase2 ? 1 : 0) : 1,
-      canLoadPhase3: transaction.phasesUsed ? (transaction.phasesUsed.csPhase3 ? 1 : 0) : 1,
+      canLoadPhase1: 1,
+      canLoadPhase2: 1,
+      canLoadPhase3: 1,
       id: fuseID,
       timestampArrival: moment(transaction.timestamp).diff(moment().startOf('day'), 'seconds'), // Arrival timestamp in seconds from midnight
       timestampDeparture: 62100, // Mock timestamp departure (17:15) - recommendation from Oliver
@@ -330,9 +332,9 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       maxCapacity: 100 * 1000 / voltage, // Battery capacity in Amp.h (fixed to 100kW.h)
       minLoadingState: (100 * 1000 / voltage) * currentSoc, // Current battery level in Amp.h set at 50% (fixed to 50kW.h)
       startCapacity: transaction.currentTotalConsumptionWh / voltage, // Total consumption in Amp.h
-      minCurrent: (numberOfPhases > 0) ? (StaticLimitAmps.MIN_LIMIT_PER_PHASE * numberOfPhases) : StaticLimitAmps.MIN_LIMIT_PER_PHASE,
+      minCurrent: StaticLimitAmps.MIN_LIMIT_PER_PHASE * 3,
       minCurrentPerPhase: StaticLimitAmps.MIN_LIMIT_PER_PHASE,
-      maxCurrent: (numberOfPhases > 0) ? (maxConnectorAmpsPerPhase * numberOfPhases) : maxConnectorAmps, // Charge capability in Amps
+      maxCurrent: maxConnectorAmpsPerPhase * 3, // Charge capability in Amps
       maxCurrentPerPhase: maxConnectorAmpsPerPhase, // Charge capability in Amps per phase
       suspendable: true,
       immediateStart: false,
@@ -340,6 +342,20 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       name: `${transaction.chargeBoxID}~${transaction.connectorId}`,
     };
     return car;
+  }
+
+  private overrideCarWithRuntimeData(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
+    // If Car ID is provided - build custom car (tbd with handling car PR)
+    const adjustedCar = this.buildSaveCar(fuseID, chargingStation, transaction);
+    const numberOfPhasesInProgress = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
+    if (numberOfPhasesInProgress !== -1) {
+      adjustedCar.canLoadPhase1 = transaction.phasesUsed.csPhase1 ? 1 : 0;
+      adjustedCar.canLoadPhase2 = transaction.phasesUsed.csPhase2 ? 1 : 0;
+      adjustedCar.canLoadPhase3 = transaction.phasesUsed.csPhase3 ? 1 : 0;
+      adjustedCar.minCurrent = adjustedCar.minCurrentPerPhase * numberOfPhasesInProgress;
+      adjustedCar.maxCurrent = adjustedCar.maxCurrentPerPhase * numberOfPhasesInProgress;
+    }
+    return adjustedCar;
   }
 
   private connectorIsCharging(connector: Connector): boolean {
