@@ -187,7 +187,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
           car = this.overrideCarWithRuntimeData(fuseID, chargingStation, transaction);
         } else {
           // If Car ID is provided - build custom car (tbd with handling car PR)
-          car = this.buildSaveCar(fuseID, chargingStation, transaction);
+          car = this.buildSafeCar(fuseID, chargingStation, transaction);
         }
 
         cars.push(car);
@@ -310,7 +310,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     }
   }
 
-  private buildSaveCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
+  private buildSafeCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
     const maxConnectorAmps = Utils.getChargingStationAmperage(chargingStation, null, transaction.connectorId);
     const numberOfPhases = Utils.getNumberOfConnectedPhases(chargingStation);
@@ -346,7 +346,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
 
   private overrideCarWithRuntimeData(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
     // If Car ID is provided - build custom car (tbd with handling car PR)
-    const adjustedCar = this.buildSaveCar(fuseID, chargingStation, transaction);
+    const adjustedCar = this.buildSafeCar(fuseID, chargingStation, transaction);
     const numberOfPhasesInProgress = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
     if (numberOfPhasesInProgress !== -1) {
       adjustedCar.canLoadPhase1 = transaction.phasesUsed.csPhase1 ? 1 : 0;
