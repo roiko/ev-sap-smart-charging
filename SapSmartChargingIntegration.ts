@@ -188,14 +188,10 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         if (transaction.phasesUsed) {
           // If Phases are provided - build use runtime data
           car = await this.overrideCarWithRuntimeData(fuseID, chargingStation, transaction);
-        } else if (transaction.carID) {
+        } else {
           // If Car ID is provided - build custom car
           car = await this.buildCustomCar(fuseID, chargingStation, transaction);
-        } else {
-          // If no Car ID is provided - build safe car
-          car = this.buildSafeCar(fuseID, chargingStation, transaction);
         }
-
         cars.push(car);
         // Assign car to the connector
         carConnectorAssignments.push({
