@@ -1,10 +1,12 @@
 import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, ChargingRateUnitType, ChargingSchedule, Profile } from '../../../types/ChargingProfile';
-import ChargingStation, { ChargePoint, Connector, StaticLimitAmps } from '../../../types/ChargingStation';
+import ChargingStation, { ChargePoint, Connector, CurrentType, StaticLimitAmps } from '../../../types/ChargingStation';
 import { ConnectorPower, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
 
 import AxiosFactory from '../../../utils/AxiosFactory';
 import { AxiosInstance } from 'axios';
 import BackendError from '../../../exception/BackendError';
+import { Car } from '../../../types/Car';
+import CarStorage from '../../../storage/mongodb/CarStorage';
 import { ChargePointStatus } from '../../../types/ocpp/OCPPServer';
 import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
 import Constants from '../../../utils/Constants';
@@ -184,9 +186,13 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         // Build car
         let car = {} as OptimizerCar;
         if (transaction.phasesUsed) {
-          car = this.overrideCarWithRuntimeData(fuseID, chargingStation, transaction);
+          // If Phases are provided - build use runtime data
+          car = await this.overrideCarWithRuntimeData(fuseID, chargingStation, transaction);
+        } else if (transaction.carID) {
+          // If Car ID is provided - build custom car
+          car = await this.buildCustomCar(fuseID, chargingStation, transaction);
         } else {
-          // If Car ID is provided - build custom car (tbd with handling car PR)
+          // If no Car ID is provided - build safe car
           car = this.buildSafeCar(fuseID, chargingStation, transaction);
         }
 
@@ -344,9 +350,38 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return car;
   }
 
-  private overrideCarWithRuntimeData(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
+  private async buildCustomCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): Promise<OptimizerCar> {
+    const voltage = Utils.getChargingStationVoltage(chargingStation);
+    const customCar = this.buildSafeCar(fuseID, chargingStation, transaction);
+    if (transaction.carID) {
+      const transactionCar: Car = await CarStorage.getCar(this.tenantID, transaction.carID);
+      // Handle the SoC if provided (only DC chargers)
+      let currentSoc = 0.5;
+      if (transaction.currentStateOfCharge) {
+        currentSoc = transaction.currentStateOfCharge / 100;
+      }
+      if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.AC) {
+        if (transactionCar?.converter?.amperagePerPhase > 0) {
+          customCar.maxCurrent = transactionCar.converter.amperagePerPhase * 3; // Charge capability in Amps
+          customCar.maxCurrentPerPhase = transactionCar.converter.amperagePerPhase; // Charge capability in Amps per phase
+        }
+      } else if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC) {
+        if (transactionCar?.carCatalog.fastChargePowerMax > 0) {
+          customCar.maxCurrent = Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transactionCar.carCatalog.fastChargePowerMax * 1000); // Charge capability in Amps
+          customCar.maxCurrentPerPhase = customCar.maxCurrent / 3; // Charge capability in Amps per phase
+        }
+      }
+      if (transactionCar?.carCatalog.batteryCapacityFull > 0) {
+        customCar.maxCapacity = transactionCar.carCatalog.batteryCapacityFull * 1000 / voltage; // Battery capacity in Amp.h
+        customCar.minLoadingState = (transactionCar.carCatalog.batteryCapacityFull * 1000 / voltage) * currentSoc; // Current battery level in Amp.h set at 50%
+      }
+    }
+    return customCar;
+  }
+
+  private async overrideCarWithRuntimeData(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): Promise<OptimizerCar> {
     // If Car ID is provided - build custom car (tbd with handling car PR)
-    const adjustedCar = this.buildSafeCar(fuseID, chargingStation, transaction);
+    const adjustedCar = await this.buildCustomCar(fuseID, chargingStation, transaction);
     const numberOfPhasesInProgress = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
     if (numberOfPhasesInProgress !== -1) {
       adjustedCar.canLoadPhase1 = transaction.phasesUsed.csPhase1 ? 1 : 0;
