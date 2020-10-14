@@ -318,10 +318,10 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     const numberOfPhases = Utils.getNumberOfConnectedPhases(chargingStation);
     const maxConnectorAmpsPerPhase = maxConnectorAmps / numberOfPhases;
     // Handle the SoC if provided (only DC chargers)
-    let currentSoc = 0.5;
-    if (transaction.currentStateOfCharge) {
-      currentSoc = transaction.currentStateOfCharge / 100;
-    }
+    // let currentSoc = 0;
+    // if (transaction.currentStateOfCharge) {
+    //   currentSoc = transaction.currentStateOfCharge / 100;
+    // }
     // Build a 'Safe' car
     const car: OptimizerCar = {
       canLoadPhase1: 1,
@@ -332,7 +332,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       timestampDeparture: 62100, // Mock timestamp departure (17:15) - recommendation from Oliver
       carType: 'BEV',
       maxCapacity: 100 * 1000 / voltage, // Battery capacity in Amp.h (fixed to 100kW.h)
-      minLoadingState: (100 * 1000 / voltage) * currentSoc, // Current battery level in Amp.h set at 50% (fixed to 50kW.h)
+      minLoadingState: (100 * 1000 / voltage) * 0.5, // Battery level at the end of the charge in Amp.h set at 50% (fixed to 50kW.h)
       startCapacity: transaction.currentTotalConsumptionWh / voltage, // Total consumption in Amp.h
       minCurrent: StaticLimitAmps.MIN_LIMIT_PER_PHASE * 3,
       minCurrentPerPhase: StaticLimitAmps.MIN_LIMIT_PER_PHASE,
@@ -352,10 +352,10 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     if (transaction.carID) {
       const transactionCar: Car = await CarStorage.getCar(this.tenantID, transaction.carID);
       // Handle the SoC if provided (only DC chargers)
-      let currentSoc = 0.5;
-      if (transaction.currentStateOfCharge) {
-        currentSoc = transaction.currentStateOfCharge / 100;
-      }
+      // let currentSoc = 0;
+      // if (transaction.currentStateOfCharge) {
+      //   currentSoc = transaction.currentStateOfCharge / 100;
+      // }
       if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.AC) {
         if (transactionCar?.converter?.amperagePerPhase > 0) {
           customCar.maxCurrent = transactionCar.converter.amperagePerPhase * 3; // Charge capability in Amps
@@ -369,7 +369,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       }
       if (transactionCar?.carCatalog?.batteryCapacityFull > 0) {
         customCar.maxCapacity = transactionCar.carCatalog.batteryCapacityFull * 1000 / voltage; // Battery capacity in Amp.h
-        customCar.minLoadingState = (transactionCar.carCatalog.batteryCapacityFull * 1000 / voltage) * currentSoc; // Current battery level in Amp.h set at 50%
+        customCar.minLoadingState = (transactionCar.carCatalog.batteryCapacityFull * 1000 / voltage) * 0.5; // Battery level at the end of the charge in Amp.h set at 50%
       }
     }
     return customCar;
