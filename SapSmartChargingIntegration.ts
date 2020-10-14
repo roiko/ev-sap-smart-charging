@@ -190,7 +190,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
           car = await this.overrideCarWithRuntimeData(fuseID, chargingStation, transaction);
         } else {
           // If Car ID is provided - build custom car
-          car = await this.buildCustomCar(fuseID, chargingStation, transaction);
+          car = await this.buildCar(fuseID, chargingStation, transaction);
         }
         cars.push(car);
         // Assign car to the connector
@@ -346,7 +346,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return car;
   }
 
-  private async buildCustomCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): Promise<OptimizerCar> {
+  private async buildCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): Promise<OptimizerCar> {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
     const customCar = this.buildSafeCar(fuseID, chargingStation, transaction);
     if (transaction.carID) {
@@ -362,12 +362,12 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
           customCar.maxCurrentPerPhase = transactionCar.converter.amperagePerPhase; // Charge capability in Amps per phase
         }
       } else if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC) {
-        if (transactionCar?.carCatalog.fastChargePowerMax > 0) {
+        if (transactionCar?.carCatalog?.fastChargePowerMax > 0) {
           customCar.maxCurrent = Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transactionCar.carCatalog.fastChargePowerMax * 1000); // Charge capability in Amps
           customCar.maxCurrentPerPhase = customCar.maxCurrent / 3; // Charge capability in Amps per phase
         }
       }
-      if (transactionCar?.carCatalog.batteryCapacityFull > 0) {
+      if (transactionCar?.carCatalog?.batteryCapacityFull > 0) {
         customCar.maxCapacity = transactionCar.carCatalog.batteryCapacityFull * 1000 / voltage; // Battery capacity in Amp.h
         customCar.minLoadingState = (transactionCar.carCatalog.batteryCapacityFull * 1000 / voltage) * currentSoc; // Current battery level in Amp.h set at 50%
       }
@@ -377,7 +377,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
 
   private async overrideCarWithRuntimeData(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): Promise<OptimizerCar> {
     // If Car ID is provided - build custom car (tbd with handling car PR)
-    const adjustedCar = await this.buildCustomCar(fuseID, chargingStation, transaction);
+    const adjustedCar = await this.buildCar(fuseID, chargingStation, transaction);
     const numberOfPhasesInProgress = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
     if (numberOfPhasesInProgress !== -1) {
       adjustedCar.canLoadPhase1 = transaction.phasesUsed.csPhase1 ? 1 : 0;
