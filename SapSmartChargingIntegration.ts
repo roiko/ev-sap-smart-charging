@@ -185,13 +185,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         sumConnectorAmperagePhase3 += chargingStationConnectorFuse.fusePhase3;
         // Build car
         let car = {} as OptimizerCar;
-        if (transaction.phasesUsed) {
-          // If Phases are provided - build use runtime data
-          car = await this.overrideCarWithRuntimeData(fuseID, chargingStation, transaction);
-        } else {
-          // If Car ID is provided - build custom car
-          car = await this.buildCar(fuseID, chargingStation, transaction);
-        }
+        // If Car ID is provided - build custom car
+        car = await this.buildCar(fuseID, chargingStation, transaction);
         cars.push(car);
         // Assign car to the connector
         carConnectorAssignments.push({
@@ -317,11 +312,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     const maxConnectorAmps = Utils.getChargingStationAmperage(chargingStation, null, transaction.connectorId);
     const numberOfPhases = Utils.getNumberOfConnectedPhases(chargingStation);
     const maxConnectorAmpsPerPhase = maxConnectorAmps / numberOfPhases;
-    // Handle the SoC if provided (only DC chargers)
-    // let currentSoc = 0;
-    // if (transaction.currentStateOfCharge) {
-    //   currentSoc = transaction.currentStateOfCharge / 100;
-    // }
     // Build a 'Safe' car
     const car: OptimizerCar = {
       canLoadPhase1: 1,
@@ -351,11 +341,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     const customCar = this.buildSafeCar(fuseID, chargingStation, transaction);
     if (transaction.carID) {
       const transactionCar: Car = await CarStorage.getCar(this.tenantID, transaction.carID);
-      // Handle the SoC if provided (only DC chargers)
-      // let currentSoc = 0;
-      // if (transaction.currentStateOfCharge) {
-      //   currentSoc = transaction.currentStateOfCharge / 100;
-      // }
       if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.AC) {
         if (transactionCar?.converter?.amperagePerPhase > 0) {
           customCar.maxCurrent = transactionCar.converter.amperagePerPhase * 3; // Charge capability in Amps
@@ -372,21 +357,23 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         customCar.minLoadingState = (transactionCar.carCatalog.batteryCapacityFull * 1000 / voltage) * 0.5; // Battery level at the end of the charge in Amp.h set at 50%
       }
     }
-    return customCar;
+    return this.overrideCarWithRuntimeData(chargingStation, transaction, customCar);
   }
 
-  private async overrideCarWithRuntimeData(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): Promise<OptimizerCar> {
+  private overrideCarWithRuntimeData(chargingStation: ChargingStation, transaction: Transaction, car: OptimizerCar): OptimizerCar {
     // If Car ID is provided - build custom car (tbd with handling car PR)
-    const adjustedCar = await this.buildCar(fuseID, chargingStation, transaction);
-    const numberOfPhasesInProgress = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
-    if (numberOfPhasesInProgress !== -1) {
-      adjustedCar.canLoadPhase1 = transaction.phasesUsed.csPhase1 ? 1 : 0;
-      adjustedCar.canLoadPhase2 = transaction.phasesUsed.csPhase2 ? 1 : 0;
-      adjustedCar.canLoadPhase3 = transaction.phasesUsed.csPhase3 ? 1 : 0;
-      adjustedCar.minCurrent = adjustedCar.minCurrentPerPhase * numberOfPhasesInProgress;
-      adjustedCar.maxCurrent = adjustedCar.maxCurrentPerPhase * numberOfPhasesInProgress;
+    if (transaction.phasesUsed) {
+      const numberOfPhasesInProgress = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
+      if (numberOfPhasesInProgress !== -1) {
+        car.canLoadPhase1 = transaction.phasesUsed.csPhase1 ? 1 : 0;
+        car.canLoadPhase2 = transaction.phasesUsed.csPhase2 ? 1 : 0;
+        car.canLoadPhase3 = transaction.phasesUsed.csPhase3 ? 1 : 0;
+        car.minCurrent = car.minCurrentPerPhase * numberOfPhasesInProgress;
+        car.maxCurrent = car.maxCurrentPerPhase * numberOfPhasesInProgress;
+      }
     }
-    return adjustedCar;
+    return car;
+
   }
 
   private connectorIsCharging(connector: Connector): boolean {
