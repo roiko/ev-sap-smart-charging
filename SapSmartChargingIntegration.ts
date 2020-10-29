@@ -309,9 +309,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
 
   private buildSafeCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
-    const maxConnectorAmps = Utils.getChargingStationAmperage(chargingStation, null, transaction.connectorId);
-    const numberOfPhases = Utils.getNumberOfConnectedPhases(chargingStation);
-    const maxConnectorAmpsPerPhase = maxConnectorAmps / numberOfPhases;
+    const maxConnectorAmpsPerPhase = Utils.getChargingStationAmperagePerPhase(chargingStation, null, transaction.connectorId);
     // Build a 'Safe' car
     const car: OptimizerCar = {
       canLoadPhase1: 1,
