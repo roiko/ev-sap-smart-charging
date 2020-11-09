@@ -317,7 +317,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       canLoadPhase3: 1,
       id: fuseID,
       timestampArrival: moment(transaction.timestamp).diff(moment().startOf('day'), 'seconds'), // Arrival timestamp in seconds from midnight
-      timestampDeparture: 62100, // Mock timestamp departure (17:15) - recommendation from Oliver
+      // TimestampDeparture is not useful for the time being, because if hard coded it lets the request fail after 17:15, can be taken in again, when the user is able to enter a departure time (with a check if it is after the current time)
+      // timestampDeparture: 62100, // Mock timestamp departure (17:15) - recommendation from Oliver
       carType: 'BEV',
       maxCapacity: 100 * 1000 / voltage, // Battery capacity in Amp.h (fixed to 100kW.h)
       minLoadingState: (100 * 1000 / voltage) * 0.5, // Battery level at the end of the charge in Amp.h set at 50% (fixed to 50kW.h)
