@@ -1,6 +1,6 @@
 import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, ChargingRateUnitType, ChargingSchedule, Profile } from '../../../types/ChargingProfile';
 import ChargingStation, { ChargePoint, Connector, CurrentType, StaticLimitAmps } from '../../../types/ChargingStation';
-import { ConnectorPower, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
+import { ConnectorAmps, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
 
 import AxiosFactory from '../../../utils/AxiosFactory';
 import { AxiosInstance } from 'axios';
@@ -381,16 +381,16 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       connector.status === ChargePointStatus.OCCUPIED;
   }
 
-  private getConnectorNbrOfPhasesAndAmps(siteArea: SiteArea, chargingStation: ChargingStation, connector: Connector): ConnectorPower {
-    const connectorPower: ConnectorPower = {
+  private getConnectorNbrOfPhasesAndAmps(siteArea: SiteArea, chargingStation: ChargingStation, connector: Connector): ConnectorAmps {
+    const connectorAmps: ConnectorAmps = {
       numberOfConnectedPhase: 0,
       totalAmps: 0
     };
     if (connector.chargePointID) {
       const chargePoint = Utils.getChargePointFromID(chargingStation, connector.chargePointID);
       // Get the usual power
-      connectorPower.numberOfConnectedPhase = Utils.getNumberOfConnectedPhases(chargingStation, chargePoint, connector.connectorId);
-      connectorPower.totalAmps = Utils.getChargingStationAmperage(chargingStation, chargePoint, connector.connectorId);
+      connectorAmps.numberOfConnectedPhase = Utils.getNumberOfConnectedPhases(chargingStation, chargePoint, connector.connectorId);
+      connectorAmps.totalAmps = Utils.getChargingStationAmperage(chargingStation, chargePoint, connector.connectorId);
       // Check if the charging station share the power on all connectors and distribute the power evenly
       // Check also if the charging station can charge in // and all other connectors are free
       if (chargePoint.sharePowerToAllConnectors || chargePoint.cannotChargeInParallel) {
@@ -410,20 +410,20 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         if (numberOfConnectorsCurrentlyCharging >= 1) {
           // Already several connectors to share energy with
           if (chargePoint.sharePowerToAllConnectors) {
-            connectorPower.totalAmps /= numberOfConnectorsCurrentlyCharging;
+            connectorAmps.totalAmps /= numberOfConnectorsCurrentlyCharging;
           }
           // Already several connectors charging in //
           if (chargePoint.cannotChargeInParallel && numberOfConnectorsCurrentlyCharging > 1) {
             // Annihilate the power of the connector
-            connectorPower.totalAmps = 0;
+            connectorAmps.totalAmps = 0;
           }
         }
       }
     } else {
-      connectorPower.numberOfConnectedPhase = connector.numberOfConnectedPhase;
-      connectorPower.totalAmps = connector.amperage;
+      connectorAmps.numberOfConnectedPhase = connector.numberOfConnectedPhase;
+      connectorAmps.totalAmps = connector.amperage;
     }
-    if (!connectorPower.numberOfConnectedPhase) {
+    if (!connectorAmps.numberOfConnectedPhase) {
       throw new BackendError({
         source: chargingStation.id,
         action: ServerAction.SMART_CHARGING,
@@ -432,7 +432,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         detailedMessages: { connector, chargingStation }
       });
     }
-    if (!connectorPower.totalAmps) {
+    if (!connectorAmps.totalAmps) {
       throw new BackendError({
         source: chargingStation.id,
         action: ServerAction.SMART_CHARGING,
@@ -441,23 +441,23 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         detailedMessages: { connector, chargingStation }
       });
     }
-    return connectorPower;
+    return connectorAmps;
   }
 
   private buildChargingStationConnectorFuse(siteArea: SiteArea, fuseID: number, chargingStation: ChargingStation, connector: Connector): OptimizerChargingStationConnectorFuse {
     // Get connector's power
-    const connectorPower = this.getConnectorNbrOfPhasesAndAmps(siteArea, chargingStation, connector);
-    const connectorAmpsPerPhase = Utils.getChargingStationAmperagePerPhase(chargingStation, null, connector.connectorId);
+    const connectorAmps = this.getConnectorNbrOfPhasesAndAmps(siteArea, chargingStation, connector);
+    const connectorAmpsPerPhase = connectorAmps.totalAmps / connectorAmps.numberOfConnectedPhase;
     // Build charging station from connector
     const chargingStationConnectorFuse: OptimizerChargingStationConnectorFuse = {
       '@type': 'ChargingStation', // It's connector but for the optimizer this is a Charging Station
       id: fuseID,
       fusePhase1: connectorAmpsPerPhase,
-      fusePhase2: (connectorPower.numberOfConnectedPhase > 1 ? connectorAmpsPerPhase : 0),
-      fusePhase3: (connectorPower.numberOfConnectedPhase > 1 ? connectorAmpsPerPhase : 0),
+      fusePhase2: (connectorAmps.numberOfConnectedPhase > 1 ? connectorAmpsPerPhase : 0),
+      fusePhase3: (connectorAmps.numberOfConnectedPhase > 1 ? connectorAmpsPerPhase : 0),
       phase1Connected: true,
-      phase2Connected: (connectorPower.numberOfConnectedPhase > 1 ? true : false),
-      phase3Connected: (connectorPower.numberOfConnectedPhase > 1 ? true : false),
+      phase2Connected: (connectorAmps.numberOfConnectedPhase > 1 ? true : false),
+      phase3Connected: (connectorAmps.numberOfConnectedPhase > 1 ? true : false),
     };
     return chargingStationConnectorFuse;
   }
