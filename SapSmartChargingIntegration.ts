@@ -272,7 +272,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
             if (chargePoint.excludeFromPowerLimitation &&
                !chargePointIDsAlreadyProcessed.includes(chargePoint.chargePointID)) {
               // Remove the power of the connector
-              const connectorAmperage = Utils.getChargingStationAmperage(chargingStation, chargePoint);
+              const connectorAmperage = Utils.getChargingStationAmperage(chargingStation, chargePoint, connector.connectorId);
               siteMaxAmps -= connectorAmperage;
               // Remove the connector
               chargingStation.connectors.splice(j, 1);
