@@ -444,10 +444,10 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return connectorPower;
   }
 
-  private buildChargingStationConnectorFuse(siteArea: SiteArea, fuseID: number, chargingStation: ChargingStation, connector: Connector): OptimizerChargingStationConnectorFuse {
+  private buildChargingStationConnsectorFuse(siteArea: SiteArea, fuseID: number, chargingStation: ChargingStation, connector: Connector): OptimizerChargingStationConnectorFuse {
     // Get connector's power
     const connectorPower = this.getConnectorNbrOfPhasesAndAmps(siteArea, chargingStation, connector);
-    const connectorAmpsPerPhase = connectorPower.totalAmps / connectorPower.numberOfConnectedPhase;
+    const connectorAmpsPerPhase = Utils.getChargingStationAmperagePerPhase(chargingStation, null, connector.connectorId);
     // Build charging station from connector
     const chargingStationConnectorFuse: OptimizerChargingStationConnectorFuse = {
       '@type': 'ChargingStation', // It's connector but for the optimizer this is a Charging Station
