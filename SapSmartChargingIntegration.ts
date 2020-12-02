@@ -60,7 +60,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     }
   }
 
-  public async buildChargingProfiles(siteArea: SiteArea): Promise<ChargingProfile[]> {
+  public async buildChargingProfiles(siteArea: SiteArea, excludedChargingStations?: string[]): Promise<ChargingProfile[]> {
     // Get seconds since midnight
     const currentDurationFromMidnightSeconds = moment().diff(moment().startOf('day'), 'seconds');
     // Get the Charging Stations of the site area with status charging and preparing
@@ -68,7 +68,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       { siteAreaIDs: [siteArea.id], connectorStatuses: [ChargePointStatus.CHARGING, ChargePointStatus.SUSPENDED_EVSE] },
       Constants.DB_PARAMS_MAX_LIMIT);
     siteArea.chargingStations = chargingStations.result;
-    const request = await this.buildOptimizerRequest(siteArea, currentDurationFromMidnightSeconds);
+    const request = await this.buildOptimizerRequest(siteArea, currentDurationFromMidnightSeconds, excludedChargingStations);
     // Call optimizer
     const url = this.buildOptimizerUrl(siteArea);
     // Check at least one car
@@ -139,7 +139,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return requestUrl;
   }
 
-  private async buildOptimizerRequest(siteArea: SiteArea, currentTimeSeconds: number): Promise<OptimizerChargingProfilesRequest> {
+  private async buildOptimizerRequest(siteArea: SiteArea, currentTimeSeconds: number, excludedChargingStations?: string[]): Promise<OptimizerChargingProfilesRequest> {
     // Instantiate initial arrays for request
     const cars: OptimizerCar[] = [];
     const carConnectorAssignments: OptimizerCarConnectorAssignment[] = [];
@@ -147,7 +147,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     let fuseID = 0;
     this.checkIfSiteAreaIsValid(siteArea);
     // Adjust site limitation
-    this.adjustSiteLimitation(siteArea);
+    this.adjustSiteLimitation(siteArea, excludedChargingStations);
     // Create root fuse
     const siteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     const siteMaxAmpsPerPhase = siteMaxAmps / siteArea.numberOfPhases;
@@ -249,7 +249,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return transaction;
   }
 
-  private adjustSiteLimitation(siteArea: SiteArea) {
+  private adjustSiteLimitation(siteArea: SiteArea, excludedChargingStations?: string[]) {
     const originalSiteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     let siteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     for (let i = siteArea.chargingStations.length - 1; i >= 0; i--) {
@@ -257,7 +257,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       const chargePointIDsAlreadyProcessed = [];
       const chargingStationVoltage = Utils.getChargingStationVoltage(chargingStation);
       // Handle charging station that does not support smart charging
-      if (chargingStation.excludeFromSmartCharging) {
+      if (chargingStation.excludeFromSmartCharging || excludedChargingStations?.includes(chargingStation.id)) {
         // Remove charging station
         siteArea.chargingStations.splice(i, 1);
         // Remove the power of the whole charging station
