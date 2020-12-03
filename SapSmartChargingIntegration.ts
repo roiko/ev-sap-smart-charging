@@ -386,7 +386,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       }
     }
     return car;
-
   }
 
   private connectorIsCharging(connector: Connector): boolean {
@@ -465,13 +464,13 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     let connectorAmpsPerPhase = connectorAmps.totalAmps / connectorAmps.numberOfConnectedPhase;
     // Check if CS is DC and calculate real consumption at the grid
     if (Utils.getChargingStationCurrentType(chargingStation, null, connector.connectorId) === CurrentType.DC) {
-      if (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency) {
-        connectorAmpsPerPhase = connectorAmpsPerPhase / (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency / 100) ;
+      const chargePoint = Utils.getChargePointFromID(chargingStation, connector.chargePointID);
+      if (chargePoint?.efficiency > 0) {
+        connectorAmpsPerPhase /= chargePoint.efficiency / 100;
       } else {
         // Use safe value if efficiency is not provided
-        connectorAmpsPerPhase = connectorAmpsPerPhase / 0.8;
+        connectorAmpsPerPhase /= 0.8;
       }
-
     }
     // Build charging station from connector
     const chargingStationConnectorFuse: OptimizerChargingStationConnectorFuse = {
