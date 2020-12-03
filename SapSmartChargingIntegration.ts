@@ -69,7 +69,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       Constants.DB_PARAMS_MAX_LIMIT);
     siteArea.chargingStations = chargingStations.result;
     const request = await this.buildOptimizerRequest(siteArea, currentDurationFromMidnightSeconds, excludedChargingStations);
-    console.log(JSON.stringify(request, null, ' '));
     // Call optimizer
     const url = this.buildOptimizerUrl(siteArea);
     // Check at least one car
