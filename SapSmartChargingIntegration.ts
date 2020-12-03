@@ -584,11 +584,11 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   private calculateCarConsumption(chargingStation: ChargingStation, connector: Connector, numberOfConnectedPhase: number, currentLimit: number): number {
     // Calculation of power which the car consumes after the loss of power in the charging station
     if (Utils.getChargingStationCurrentType(chargingStation, null, connector.connectorId) === CurrentType.DC) {
-      if (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency) {
-        return Math.trunc(currentLimit * (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency / 100) * numberOfConnectedPhase);
+      const chargePoint = Utils.getChargePointFromID(chargingStation, connector.chargePointID);
+      if (chargePoint?.efficiency > 0) {
+        return Math.trunc(currentLimit * chargePoint.efficiency / 100) * numberOfConnectedPhase;
       }
       return Math.trunc(currentLimit * 0.8 * numberOfConnectedPhase);
-
     }
     return Math.trunc(currentLimit * numberOfConnectedPhase);
   }
