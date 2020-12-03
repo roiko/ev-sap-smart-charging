@@ -357,10 +357,11 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       }
     }
     customCar = this.overrideCarWithRuntimeData(chargingStation, transaction, customCar);
-
     // Check if CS is DC and calculate real consumption at the grid
     if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC) {
-      if (Utils.getChargePointFromID(chargingStation, Utils.getConnectorFromID(chargingStation, transaction.connectorId)?.chargePointID)?.efficiency) {
+      const connector = Utils.getConnectorFromID(chargingStation, transaction.connectorId);
+      const chargePoint = Utils.getChargePointFromID(chargingStation, connector?.chargePointID);
+      if (chargePoint?.efficiency) {
         customCar.maxCurrent = customCar.maxCurrent / (Utils.getChargePointFromID(chargingStation,
           Utils.getConnectorFromID(chargingStation, transaction.connectorId)?.chargePointID)?.efficiency / 100);
         customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
