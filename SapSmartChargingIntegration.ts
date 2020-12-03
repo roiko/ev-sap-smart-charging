@@ -361,9 +361,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC) {
       const connector = Utils.getConnectorFromID(chargingStation, transaction.connectorId);
       const chargePoint = Utils.getChargePointFromID(chargingStation, connector?.chargePointID);
-      if (chargePoint?.efficiency) {
-        customCar.maxCurrent = customCar.maxCurrent / (Utils.getChargePointFromID(chargingStation,
-          Utils.getConnectorFromID(chargingStation, transaction.connectorId)?.chargePointID)?.efficiency / 100);
+      if (chargePoint?.efficiency > 0) {
+        customCar.maxCurrent /= chargePoint.efficiency / 100;
         customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
       } else {
         // Use safe value if efficiency is not provided
