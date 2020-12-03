@@ -69,6 +69,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       Constants.DB_PARAMS_MAX_LIMIT);
     siteArea.chargingStations = chargingStations.result;
     const request = await this.buildOptimizerRequest(siteArea, currentDurationFromMidnightSeconds, excludedChargingStations);
+    console.log(JSON.stringify(request, null, ' '));
     // Call optimizer
     const url = this.buildOptimizerUrl(siteArea);
     // Check at least one car
@@ -365,7 +366,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
           Utils.getConnectorFromID(chargingStation, transaction.connectorId)?.chargePointID)?.efficiency / 100);
         customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
       } else {
-        // Use save value if efficiency is not provided
+        // Use safe value if efficiency is not provided
         customCar.maxCurrent = customCar.maxCurrent / 0.8;
         customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
       }
@@ -468,7 +469,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       if (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency) {
         connectorAmpsPerPhase = connectorAmpsPerPhase / (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency / 100) ;
       } else {
-        // Use save value if efficiency is not provided
+        // Use safe value if efficiency is not provided
         connectorAmpsPerPhase = connectorAmpsPerPhase / 0.8;
       }
 
