@@ -366,7 +366,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
       } else {
         // Use safe value if efficiency is not provided
-        customCar.maxCurrent = customCar.maxCurrent / 0.8;
+        customCar.maxCurrent = customCar.maxCurrent / Constants.DC_CHARGING_STATION_DEFAULT_EFFICIENCY_PERCENT;
         customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
       }
     }
@@ -469,7 +469,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         connectorAmpsPerPhase /= chargePoint.efficiency / 100;
       } else {
         // Use safe value if efficiency is not provided
-        connectorAmpsPerPhase /= 0.8;
+        connectorAmpsPerPhase /= Constants.DC_CHARGING_STATION_DEFAULT_EFFICIENCY_PERCENT;
       }
     }
     // Build charging station from connector
@@ -588,7 +588,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       if (chargePoint?.efficiency > 0) {
         return Math.trunc(currentLimit * chargePoint.efficiency / 100) * numberOfConnectedPhase;
       }
-      return Math.trunc(currentLimit * 0.8 * numberOfConnectedPhase);
+      return Math.trunc(currentLimit * Constants.DC_CHARGING_STATION_DEFAULT_EFFICIENCY_PERCENT * numberOfConnectedPhase);
     }
     return Math.trunc(currentLimit * numberOfConnectedPhase);
   }
