@@ -337,7 +337,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
 
   private async buildCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): Promise<OptimizerCar> {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
-    const customCar = this.buildSafeCar(fuseID, chargingStation, transaction);
+    let customCar = this.buildSafeCar(fuseID, chargingStation, transaction);
     if (transaction.carID) {
       const transactionCar: Car = await CarStorage.getCar(this.tenantID, transaction.carID);
       if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.AC) {
@@ -356,7 +356,20 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         customCar.minLoadingState = (transactionCar.carCatalog.batteryCapacityFull * 1000 / voltage) * 0.5; // Battery level at the end of the charge in Amp.h set at 50%
       }
     }
-    return this.overrideCarWithRuntimeData(chargingStation, transaction, customCar);
+    customCar = this.overrideCarWithRuntimeData(chargingStation, transaction, customCar);
+
+    // Check if CS is DC and calculate values after efficiency
+    if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC) {
+      if (Utils.getChargePointFromID(chargingStation, Utils.getConnectorFromID(chargingStation, transaction.connectorId)?.chargePointID)?.efficiency) {
+        customCar.maxCurrent = customCar.maxCurrent / (Utils.getChargePointFromID(chargingStation,
+          Utils.getConnectorFromID(chargingStation, transaction.connectorId)?.chargePointID)?.efficiency / 100);
+        customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
+      } else {
+        customCar.maxCurrent = customCar.maxCurrent / 0.8;
+        customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
+      }
+    }
+    return customCar;
   }
 
   private overrideCarWithRuntimeData(chargingStation: ChargingStation, transaction: Transaction, car: OptimizerCar): OptimizerCar {
@@ -448,7 +461,15 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   private buildChargingStationConnectorFuse(siteArea: SiteArea, fuseID: number, chargingStation: ChargingStation, connector: Connector): OptimizerChargingStationConnectorFuse {
     // Get connector's power
     const connectorAmps = this.getConnectorNbrOfPhasesAndAmps(siteArea, chargingStation, connector);
-    const connectorAmpsPerPhase = connectorAmps.totalAmps / connectorAmps.numberOfConnectedPhase;
+    let connectorAmpsPerPhase = connectorAmps.totalAmps / connectorAmps.numberOfConnectedPhase;
+    if (Utils.getChargingStationCurrentType(chargingStation, null, connector.connectorId) === CurrentType.DC) {
+      if (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency) {
+        connectorAmpsPerPhase = connectorAmpsPerPhase / (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency / 100) ;
+      } else {
+        connectorAmpsPerPhase = connectorAmpsPerPhase / 0.8;
+      }
+
+    }
     // Build charging station from connector
     const chargingStationConnectorFuse: OptimizerChargingStationConnectorFuse = {
       '@type': 'ChargingStation', // It's connector but for the optimizer this is a Charging Station
@@ -530,7 +551,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
           (car.currentPlan[i] > 0 || chargingSchedule.chargingSchedulePeriod.length < 3); i++) {
         chargingSchedule.chargingSchedulePeriod.push({
           startPeriod: currentTimeSlotMins * 15 * 60, // Start period in secs (starts at 0 sec from startSchedule date/time)
-          limit: Math.trunc(car.currentPlan[i] * numberOfConnectedPhase)
+          limit: this.calculateCarConsumption(chargingStation, connector, numberOfConnectedPhase, car.currentPlan[i])
         });
         currentTimeSlotMins++;
       }
@@ -556,5 +577,16 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       chargingProfiles.push(chargingProfile);
     } // End for of cars
     return chargingProfiles;
+  }
+
+  private calculateCarConsumption(chargingStation: ChargingStation, connector: Connector, numberOfConnectedPhase: number, currentLimit: number): number {
+    if (Utils.getChargingStationCurrentType(chargingStation, null, connector.connectorId) === CurrentType.DC) {
+      if (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency) {
+        return Math.trunc(currentLimit * (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency / 100) * numberOfConnectedPhase);
+      }
+      return Math.trunc(currentLimit * 0.8 * numberOfConnectedPhase);
+
+    }
+    return Math.trunc(currentLimit * numberOfConnectedPhase);
   }
 }
