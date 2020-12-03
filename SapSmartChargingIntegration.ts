@@ -358,13 +358,14 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     }
     customCar = this.overrideCarWithRuntimeData(chargingStation, transaction, customCar);
 
-    // Check if CS is DC and calculate values after efficiency
+    // Check if CS is DC and calculate real consumption at the grid
     if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC) {
       if (Utils.getChargePointFromID(chargingStation, Utils.getConnectorFromID(chargingStation, transaction.connectorId)?.chargePointID)?.efficiency) {
         customCar.maxCurrent = customCar.maxCurrent / (Utils.getChargePointFromID(chargingStation,
           Utils.getConnectorFromID(chargingStation, transaction.connectorId)?.chargePointID)?.efficiency / 100);
         customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
       } else {
+        // Use save value if efficiency is not provided
         customCar.maxCurrent = customCar.maxCurrent / 0.8;
         customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
       }
@@ -462,10 +463,12 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     // Get connector's power
     const connectorAmps = this.getConnectorNbrOfPhasesAndAmps(siteArea, chargingStation, connector);
     let connectorAmpsPerPhase = connectorAmps.totalAmps / connectorAmps.numberOfConnectedPhase;
+    // Check if CS is DC and calculate real consumption at the grid
     if (Utils.getChargingStationCurrentType(chargingStation, null, connector.connectorId) === CurrentType.DC) {
       if (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency) {
         connectorAmpsPerPhase = connectorAmpsPerPhase / (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency / 100) ;
       } else {
+        // Use save value if efficiency is not provided
         connectorAmpsPerPhase = connectorAmpsPerPhase / 0.8;
       }
 
@@ -580,6 +583,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   private calculateCarConsumption(chargingStation: ChargingStation, connector: Connector, numberOfConnectedPhase: number, currentLimit: number): number {
+    // Calculation of power which the car consumes after the loss of power in the charging station
     if (Utils.getChargingStationCurrentType(chargingStation, null, connector.connectorId) === CurrentType.DC) {
       if (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency) {
         return Math.trunc(currentLimit * (Utils.getChargePointFromID(chargingStation, connector.chargePointID)?.efficiency / 100) * numberOfConnectedPhase);
