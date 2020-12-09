@@ -367,7 +367,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         customCar.maxCurrent = customCar.maxCurrentPerPhase * 3;
       } else {
         // Use safe value if efficiency is not provided
-        customCar.maxCurrentPerPhase = customCar.maxCurrent / Constants.DC_CHARGING_STATION_DEFAULT_EFFICIENCY_PERCENT;
+        customCar.maxCurrentPerPhase /= Constants.DC_CHARGING_STATION_DEFAULT_EFFICIENCY_PERCENT;
         customCar.maxCurrent = customCar.maxCurrentPerPhase * 3;
       }
     }
