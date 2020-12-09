@@ -2,6 +2,8 @@ import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, C
 import ChargingStation, { ChargePoint, Connector, CurrentType, StaticLimitAmps } from '../../../types/ChargingStation';
 import { ConnectorAmps, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
 
+import AssetFactory from '../../asset/AssetFactory';
+import AssetStorage from '../../../storage/mongodb/AssetStorage';
 import AxiosFactory from '../../../utils/AxiosFactory';
 import { AxiosInstance } from 'axios';
 import BackendError from '../../../exception/BackendError';
@@ -10,12 +12,17 @@ import CarStorage from '../../../storage/mongodb/CarStorage';
 import { ChargePointStatus } from '../../../types/ocpp/OCPPServer';
 import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
 import Constants from '../../../utils/Constants';
+import Consumption from '../../../types/Consumption';
 import Cypher from '../../../utils/Cypher';
+import LockingHelper from '../../../locking/LockingHelper';
+import LockingManager from '../../../locking/LockingManager';
 import Logging from '../../../utils/Logging';
 import { SapSmartChargingSetting } from '../../../types/Setting';
 import { ServerAction } from '../../../types/Server';
 import SiteArea from '../../../types/SiteArea';
 import SmartChargingIntegration from '../SmartChargingIntegration';
+import TenantComponents from '../../../types/TenantComponents';
+import TenantStorage from '../../../storage/mongodb/TenantStorage';
 import Transaction from '../../../types/Transaction';
 import TransactionStorage from '../../../storage/mongodb/TransactionStorage';
 import Utils from '../../../utils/Utils';
@@ -147,7 +154,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     let fuseID = 0;
     this.checkIfSiteAreaIsValid(siteArea);
     // Adjust site limitation
-    this.adjustSiteLimitation(siteArea, excludedChargingStations);
+    await this.adjustSiteLimitation(siteArea, excludedChargingStations);
     // Create root fuse
     const siteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     const siteMaxAmpsPerPhase = siteMaxAmps / siteArea.numberOfPhases;
@@ -249,9 +256,12 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return transaction;
   }
 
-  private adjustSiteLimitation(siteArea: SiteArea, excludedChargingStations?: string[]) {
+  private async adjustSiteLimitation(siteArea: SiteArea, excludedChargingStations?: string[]) {
     const originalSiteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     let siteMaxAmps = siteArea.maximumPower / siteArea.voltage;
+
+    const assetConsumptionInAmp = await this.getAssetConsumptionInAmps(siteArea.id);
+    siteMaxAmps = siteMaxAmps - assetConsumptionInAmp;
     for (let i = siteArea.chargingStations.length - 1; i >= 0; i--) {
       const chargingStation = siteArea.chargingStations[i];
       const chargePointIDsAlreadyProcessed = [];
@@ -591,5 +601,54 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       return Math.trunc(currentLimit * Constants.DC_CHARGING_STATION_DEFAULT_EFFICIENCY_PERCENT * numberOfConnectedPhase);
     }
     return Math.trunc(currentLimit * numberOfConnectedPhase);
+  }
+
+  private async getAssetConsumptionInAmps(siteAreaId: string): Promise<number> {
+    const tenant = await TenantStorage.getTenant(this.tenantID);
+    if (Utils.isTenantComponentActive(tenant, TenantComponents.ASSET)) {
+      // Create cumulated consumption helper
+      let cumulatedConsumptionAmps;
+      // Get dynamic assets only
+      const dynamicAssets = await AssetStorage.getAssets(tenant.id,
+        {
+          siteAreaIDs:[siteAreaId],
+          dynamicOnly: true,
+          withSiteArea: true
+        },
+        Constants.DB_PARAMS_MAX_LIMIT
+      );
+      // Process them
+      for (const asset of dynamicAssets.result) {
+        const assetLock = await LockingHelper.createAssetRetrieveConsumptionsLock(tenant.id, asset);
+        if (assetLock) {
+          try {
+            // Get asset factory
+            const assetImpl = await AssetFactory.getAssetImpl(tenant.id, asset.connectionID);
+            if (assetImpl) {
+              // Retrieve Consumption
+              const assetConsumption = await assetImpl.retrieveConsumption(asset);
+              // Create Consumption
+              const consumption: Consumption = {
+                startedAt: asset.lastConsumption.timestamp,
+                endedAt: new Date(),
+                assetID: asset.id,
+                cumulatedConsumptionWh: asset.currentConsumptionWh,
+                cumulatedConsumptionAmps: Math.floor(asset.currentConsumptionWh / 230),
+                instantAmps: asset.currentInstantAmps,
+                instantWatts: asset.currentInstantWatts,
+              };
+              cumulatedConsumptionAmps = cumulatedConsumptionAmps + assetConsumption.currentInstantAmps;
+            }
+          } catch (error) {
+            // Log error
+            Logging.logActionExceptionMessage(tenant.id, ServerAction.RETRIEVE_ASSET_CONSUMPTION, error);
+          } finally {
+            // Release the lock
+            await LockingManager.release(assetLock);
+          }
+        }
+      }
+    }
+    return 0;
   }
 }
