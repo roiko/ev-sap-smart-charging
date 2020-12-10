@@ -69,6 +69,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       Constants.DB_PARAMS_MAX_LIMIT);
     siteArea.chargingStations = chargingStations.result;
     const request = await this.buildOptimizerRequest(siteArea, currentDurationFromMidnightSeconds, excludedChargingStations);
+    console.log(JSON.stringify(request, null, ' '));
     // Call optimizer
     const url = this.buildOptimizerUrl(siteArea);
     // Check at least one car
@@ -340,7 +341,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     let customCar = this.buildSafeCar(fuseID, chargingStation, transaction);
     if (transaction.carID) {
       const transactionCar: Car = await CarStorage.getCar(this.tenantID, transaction.carID);
-      if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.AC) {
+      if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.AC &&
+      Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId) === 3) {
         if (transactionCar?.converter?.amperagePerPhase > 0) {
           customCar.maxCurrent = transactionCar.converter.amperagePerPhase * 3; // Charge capability in Amps
           customCar.maxCurrentPerPhase = transactionCar.converter.amperagePerPhase; // Charge capability in Amps per phase
@@ -374,10 +376,14 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   private overrideCarWithRuntimeData(chargingStation: ChargingStation, transaction: Transaction, car: OptimizerCar): OptimizerCar {
-    // If Car ID is provided - build custom car (tbd with handling car PR)
     if (transaction.phasesUsed) {
       const numberOfPhasesInProgress = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
       if (numberOfPhasesInProgress !== -1) {
+        if (transaction.currentInstantAmps > 0) {
+          car.maxCurrentPerPhase = Math.round(transaction.currentInstantAmps / numberOfPhasesInProgress * 1.1);
+        } else {
+          car.maxCurrentPerPhase = car.minCurrentPerPhase;
+        }
         car.canLoadPhase1 = transaction.phasesUsed.csPhase1 ? 1 : 0;
         car.canLoadPhase2 = transaction.phasesUsed.csPhase2 ? 1 : 0;
         car.canLoadPhase3 = transaction.phasesUsed.csPhase3 ? 1 : 0;
