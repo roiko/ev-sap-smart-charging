@@ -348,7 +348,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       } else if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC) {
         if (transactionCar?.carCatalog?.fastChargePowerMax > 0) {
           const maxDCCurrent = Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transactionCar.carCatalog.fastChargePowerMax * 1000); // Charge capability in Amps
-          customCar.maxCurrentPerPhase = Math.round(maxDCCurrent / 3); // Charge capability in Amps per phase
+          customCar.maxCurrentPerPhase = Utils.truncTo((maxDCCurrent / 3), 2); // Charge capability in Amps per phase
           customCar.maxCurrent = customCar.maxCurrentPerPhase * 3;
         }
       }
