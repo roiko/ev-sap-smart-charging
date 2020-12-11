@@ -337,17 +337,21 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
 
   private async buildCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): Promise<OptimizerCar> {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
-    let customCar = this.buildSafeCar(fuseID, chargingStation, transaction);
+    const customCar = this.buildSafeCar(fuseID, chargingStation, transaction);
+    // Handle provided Car
     if (transaction.carID) {
       const transactionCar: Car = await CarStorage.getCar(this.tenantID, transaction.carID);
-      if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.AC) {
+      // Setting limit from car only for 3 phased stations (AmpPerPhase-capability variates on single phased charging)
+      if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.AC &&
+          Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId) === 3) {
         if (transactionCar?.converter?.amperagePerPhase > 0) {
-          customCar.maxCurrent = transactionCar.converter.amperagePerPhase * 3; // Charge capability in Amps
           customCar.maxCurrentPerPhase = transactionCar.converter.amperagePerPhase; // Charge capability in Amps per phase
+          customCar.maxCurrent = transactionCar.converter.amperagePerPhase * 3; // Charge capability in Amps
         }
       } else if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC) {
         if (transactionCar?.carCatalog?.fastChargePowerMax > 0) {
-          const maxDCCurrent = Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transactionCar.carCatalog.fastChargePowerMax * 1000); // Charge capability in Amps
+          const maxDCCurrent = Utils.convertWattToAmp(
+            chargingStation, null, transaction.connectorId, transactionCar.carCatalog.fastChargePowerMax * 1000); // Charge capability in Amps
           customCar.maxCurrentPerPhase = Utils.truncTo((maxDCCurrent / 3), 2); // Charge capability in Amps per phase
           customCar.maxCurrent = customCar.maxCurrentPerPhase * 3;
         }
@@ -357,7 +361,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         customCar.minLoadingState = (transactionCar.carCatalog.batteryCapacityFull * 1000 / voltage) * 0.5; // Battery level at the end of the charge in Amp.h set at 50%
       }
     }
-    customCar = this.overrideCarWithRuntimeData(chargingStation, transaction, customCar);
+    // Override
+    this.overrideCarWithRuntimeData(chargingStation, transaction, customCar);
     // Check if CS is DC and calculate real consumption at the grid
     if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC) {
       const connector = Utils.getConnectorFromID(chargingStation, transaction.connectorId);
@@ -374,19 +379,34 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return customCar;
   }
 
-  private overrideCarWithRuntimeData(chargingStation: ChargingStation, transaction: Transaction, car: OptimizerCar): OptimizerCar {
-    // If Car ID is provided - build custom car (tbd with handling car PR)
+  private overrideCarWithRuntimeData(chargingStation: ChargingStation, transaction: Transaction, car: OptimizerCar) {
+    // Check if meter value already received with phases used (only on AC stations)
     if (transaction.phasesUsed) {
       const numberOfPhasesInProgress = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
+      // Check if Phases Valid
       if (numberOfPhasesInProgress !== -1) {
+        // Check if Car is consuming energy
+        if (transaction.currentInstantAmps > 0) {
+          // Setting limit to the current instant amps with buffer (If it goes above the station limit it will be limited by the optimizer fuse tree)
+          car.maxCurrentPerPhase = Utils.truncTo((transaction.currentInstantAmps / numberOfPhasesInProgress * (1 + Constants.AC_LIMIT_BUFFER_PERCENT / 100)), 4);
+        } else {
+          // When car is not consuming energy limit is set to min Amps
+          car.maxCurrentPerPhase = car.minCurrentPerPhase;
+        }
         car.canLoadPhase1 = transaction.phasesUsed.csPhase1 ? 1 : 0;
         car.canLoadPhase2 = transaction.phasesUsed.csPhase2 ? 1 : 0;
         car.canLoadPhase3 = transaction.phasesUsed.csPhase3 ? 1 : 0;
         car.minCurrent = car.minCurrentPerPhase * numberOfPhasesInProgress;
         car.maxCurrent = car.maxCurrentPerPhase * numberOfPhasesInProgress;
       }
+      // Check if Charging Station is DC
+    } else if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC && transaction.currentInstantWattsDC > 0) {
+      // Get Amps from current DC consumption (Watt)
+      const currentInstantAmps = Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transaction.currentInstantWattsDC);
+      // Setting limit to current consumption with buffer (If it goes above the station limit it will be limited by the optimizer fuse tree)
+      car.maxCurrentPerPhase = Utils.truncTo((currentInstantAmps / 3 * (1 + Constants.DC_LIMIT_BUFFER_PERCENT / 100)), 4);
+      car.maxCurrent = car.maxCurrentPerPhase * 3;
     }
-    return car;
   }
 
   private connectorIsCharging(connector: Connector): boolean {
