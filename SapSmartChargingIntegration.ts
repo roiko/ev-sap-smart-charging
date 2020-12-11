@@ -384,8 +384,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       if (numberOfPhasesInProgress !== -1) {
         // Check if Car is consuming energy
         if (transaction.currentInstantAmps > 0) {
-          // Setting limit to the current instant amps with 10% buffer (If it goes above the station limit it will be limited by the optimizer fuse tree)
-          car.maxCurrentPerPhase = Utils.truncTo((transaction.currentInstantAmps / numberOfPhasesInProgress * 1.1), 4);
+          // Setting limit to the current instant amps with buffer (If it goes above the station limit it will be limited by the optimizer fuse tree)
+          car.maxCurrentPerPhase = Utils.truncTo((transaction.currentInstantAmps / numberOfPhasesInProgress * (1 + Constants.AC_LIMIT_BUFFER_PERCENT / 100)), 4);
         } else {
           // When car is not consuming energy limit is set to min Amps
           car.maxCurrentPerPhase = car.minCurrentPerPhase;
@@ -400,8 +400,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     } else if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC && transaction.currentInstantWattsDC > 0) {
       // Get Amps from current DC consumption in Watt
       const currentInstantAmps = Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transaction.currentInstantWattsDC);
-      // Setting limit to current consumption with 10% buffer (If it goes above the station limit it will be limited by the optimizer fuse tree)
-      car.maxCurrentPerPhase = Utils.truncTo((currentInstantAmps / 3 * 1.1), 4);
+      // Setting limit to current consumption with buffer (If it goes above the station limit it will be limited by the optimizer fuse tree)
+      car.maxCurrentPerPhase = Utils.truncTo((currentInstantAmps / 3 * (1 + Constants.DC_LIMIT_BUFFER_PERCENT / 100)), 4);
       car.maxCurrent = car.maxCurrentPerPhase * 3;
     }
     return car;
