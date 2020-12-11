@@ -69,7 +69,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       Constants.DB_PARAMS_MAX_LIMIT);
     siteArea.chargingStations = chargingStations.result;
     const request = await this.buildOptimizerRequest(siteArea, currentDurationFromMidnightSeconds, excludedChargingStations);
-    console.log(JSON.stringify(request, null, ' '));
     // Call optimizer
     const url = this.buildOptimizerUrl(siteArea);
     // Check at least one car
@@ -380,7 +379,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       const numberOfPhasesInProgress = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
       if (numberOfPhasesInProgress !== -1) {
         if (transaction.currentInstantAmps > 0) {
-          car.maxCurrentPerPhase = Math.round(transaction.currentInstantAmps / numberOfPhasesInProgress * 1.1);
+          car.maxCurrentPerPhase = Utils.truncTo((transaction.currentInstantAmps / numberOfPhasesInProgress * 1.1), 4);
         } else {
           car.maxCurrentPerPhase = car.minCurrentPerPhase;
         }
@@ -390,6 +389,10 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         car.minCurrent = car.minCurrentPerPhase * numberOfPhasesInProgress;
         car.maxCurrent = car.maxCurrentPerPhase * numberOfPhasesInProgress;
       }
+    } else if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC && transaction.currentInstantWattsDC > 0) {
+      const currentInstantAmps = Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transaction.currentInstantWattsDC);
+      car.maxCurrentPerPhase = Utils.truncTo((currentInstantAmps / 3 * 1.1), 4);
+      car.maxCurrent = car.maxCurrentPerPhase * 3;
     }
     return car;
   }
