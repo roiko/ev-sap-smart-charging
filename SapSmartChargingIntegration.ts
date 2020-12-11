@@ -347,8 +347,9 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         }
       } else if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC) {
         if (transactionCar?.carCatalog?.fastChargePowerMax > 0) {
-          customCar.maxCurrent = Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transactionCar.carCatalog.fastChargePowerMax * 1000); // Charge capability in Amps
-          customCar.maxCurrentPerPhase = customCar.maxCurrent / 3; // Charge capability in Amps per phase
+          const maxDCCurrent = Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transactionCar.carCatalog.fastChargePowerMax * 1000); // Charge capability in Amps
+          customCar.maxCurrentPerPhase = Utils.truncTo((maxDCCurrent / 3), 2); // Charge capability in Amps per phase
+          customCar.maxCurrent = customCar.maxCurrentPerPhase * 3;
         }
       }
       if (transactionCar?.carCatalog?.batteryCapacityFull > 0) {
@@ -362,12 +363,12 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       const connector = Utils.getConnectorFromID(chargingStation, transaction.connectorId);
       const chargePoint = Utils.getChargePointFromID(chargingStation, connector?.chargePointID);
       if (chargePoint?.efficiency > 0) {
-        customCar.maxCurrent /= chargePoint.efficiency / 100;
-        customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
+        customCar.maxCurrentPerPhase /= chargePoint.efficiency / 100;
+        customCar.maxCurrent = customCar.maxCurrentPerPhase * 3;
       } else {
         // Use safe value if efficiency is not provided
-        customCar.maxCurrent = customCar.maxCurrent / Constants.DC_CHARGING_STATION_DEFAULT_EFFICIENCY_PERCENT;
-        customCar.maxCurrentPerPhase = customCar.maxCurrent / 3;
+        customCar.maxCurrentPerPhase /= Constants.DC_CHARGING_STATION_DEFAULT_EFFICIENCY_PERCENT / 100;
+        customCar.maxCurrent = customCar.maxCurrentPerPhase * 3;
       }
     }
     return customCar;
