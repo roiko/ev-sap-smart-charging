@@ -186,7 +186,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         // Build car
         let car = {} as OptimizerCar;
         // If Car ID is provided - build custom car
-        car = await this.buildCar(fuseID, chargingStation, transaction);
+        car = await this.buildCar(fuseID, chargingStation, transaction, currentTimeSeconds);
         cars.push(car);
         // Assign car to the connector
         carConnectorAssignments.push({
@@ -307,16 +307,19 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     }
   }
 
-  private buildSafeCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): OptimizerCar {
+  private buildSafeCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction, currentTimeSeconds: number): OptimizerCar {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
     const maxConnectorAmpsPerPhase = Utils.getChargingStationAmperagePerPhase(chargingStation, null, transaction.connectorId);
+    const timestampArrivalInSeconds = moment(transaction.timestamp).diff(moment().startOf('day'), 'seconds');
     // Build a 'Safe' car
     const car: OptimizerCar = {
       canLoadPhase1: 1,
       canLoadPhase2: 1,
       canLoadPhase3: 1,
       id: fuseID,
-      timestampArrival: moment(transaction.timestamp).diff(moment().startOf('day'), 'seconds'), // Arrival timestamp in seconds from midnight
+      // Arrival timestamp in seconds from midnight
+      timestampArrival: currentTimeSeconds > timestampArrivalInSeconds ? timestampArrivalInSeconds : // Check if timestamp arrival is in the past
+        ((currentTimeSeconds + 30) > timestampArrivalInSeconds ? currentTimeSeconds : 0), // Check if charging station is before current time or if it is arrival of the previous day
       // TimestampDeparture is not useful for the time being, because if hard coded it lets the request fail after 17:15, can be taken in again, when the user is able to enter a departure time (with a check if it is after the current time)
       // timestampDeparture: 62100, // Mock timestamp departure (17:15) - recommendation from Oliver
       carType: 'BEV',
@@ -335,9 +338,9 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return car;
   }
 
-  private async buildCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction): Promise<OptimizerCar> {
+  private async buildCar(fuseID: number, chargingStation: ChargingStation, transaction: Transaction, currentTimeSeconds: number): Promise<OptimizerCar> {
     const voltage = Utils.getChargingStationVoltage(chargingStation);
-    const customCar = this.buildSafeCar(fuseID, chargingStation, transaction);
+    const customCar = this.buildSafeCar(fuseID, chargingStation, transaction, currentTimeSeconds);
     // Handle provided Car
     if (transaction.carID) {
       const transactionCar: Car = await CarStorage.getCar(this.tenantID, transaction.carID);
