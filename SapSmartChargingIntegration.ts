@@ -616,4 +616,28 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     }
     return Math.trunc(currentLimit * numberOfConnectedPhase);
   }
+
+  private async checkIfCarIsIncreasingCharge(chargingStation: ChargingStation, transaction: Transaction,
+    currentDurationFromMidnightMins: number, currentType: CurrentType, numberOfPhasesInProgress: number): Promise<boolean> {
+    const currentProfile = await ChargingStationStorage.getChargingProfiles(this.tenantID, { chargingStationIDs: [chargingStation.id],
+      connectorID: transaction.connectorId, transactionId: transaction.id }, Constants.DB_PARAMS_MAX_LIMIT);
+    if (currentProfile.result.length === 1) {
+      const startSlot = Math.floor((moment().diff(moment(currentProfile.result[0].profile.chargingSchedule.startSchedule), 'minutes') / 15));
+      const currentSlot = Math.floor(currentDurationFromMidnightMins / 15);
+      if (currentSlot - startSlot < currentProfile.result[0].profile.chargingSchedule.chargingSchedulePeriod.length) {
+        const currentLimit = currentProfile.result[0].profile.chargingSchedule.chargingSchedulePeriod[currentSlot - startSlot]?.limit;
+        const numberOfPhasesChargingStation = Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId);
+        if (currentType === CurrentType.AC) {
+          if (currentLimit / (1 + Constants.AC_LIMIT_BUFFER_PERCENT / 100) / numberOfPhasesChargingStation < transaction.currentInstantAmps / numberOfPhasesInProgress) {
+            return true;
+          }
+        } else if (currentType === CurrentType.DC) {
+          if (currentLimit / (1 + Constants.DC_LIMIT_BUFFER_PERCENT / 100) < transaction.currentInstantAmps) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
 }
