@@ -618,21 +618,29 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   private async checkIfCarIsIncreasingCharge(chargingStation: ChargingStation, transaction: Transaction,
-    currentDurationFromMidnightMins: number, currentType: CurrentType, numberOfPhasesInProgress: number): Promise<boolean> {
+    currentDurationFromMidnightMins: number, currentType: CurrentType, numberOfPhasesInProgress: number, car: OptimizerCar): Promise<boolean> {
+    // Get the current charging profile from the database
     const currentProfile = await ChargingStationStorage.getChargingProfiles(this.tenantID, { chargingStationIDs: [chargingStation.id],
       connectorID: transaction.connectorId, transactionId: transaction.id }, Constants.DB_PARAMS_MAX_LIMIT);
+    // Check if only one charging profile is in place
     if (currentProfile.result.length === 1) {
+      // Get the start slot and the current slot to get the current period of the schedule
       const startSlot = Math.floor((moment().diff(moment(currentProfile.result[0].profile.chargingSchedule.startSchedule), 'minutes') / 15));
       const currentSlot = Math.floor(currentDurationFromMidnightMins / 15);
+      // Check if charging profile is expired
       if (currentSlot - startSlot < currentProfile.result[0].profile.chargingSchedule.chargingSchedulePeriod.length) {
+        // Get current limit and number of phases
         const currentLimit = currentProfile.result[0].profile.chargingSchedule.chargingSchedulePeriod[currentSlot - startSlot]?.limit;
         const numberOfPhasesChargingStation = Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId);
+        // Check is buffer is used for AC stations
         if (currentType === CurrentType.AC) {
-          if (currentLimit / (1 + Constants.AC_LIMIT_BUFFER_PERCENT / 100) / numberOfPhasesChargingStation < transaction.currentInstantAmps / numberOfPhasesInProgress) {
+          if (currentLimit / (1 + Constants.AC_LIMIT_BUFFER_PERCENT / 100) / numberOfPhasesChargingStation < transaction.currentInstantAmps / numberOfPhasesInProgress &&
+          currentLimit / numberOfPhasesChargingStation < car.maxCurrentPerPhase) {
             return true;
           }
+          // Check is buffer is used for DC stations
         } else if (currentType === CurrentType.DC) {
-          if (currentLimit / (1 + Constants.DC_LIMIT_BUFFER_PERCENT / 100) < transaction.currentInstantAmps) {
+          if (currentLimit / (1 + Constants.DC_LIMIT_BUFFER_PERCENT / 100) < transaction.currentInstantAmps && currentLimit < car.maxCurrentPerPhase) {
             return true;
           }
         }
