@@ -355,7 +355,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         if (transactionCar?.carCatalog?.fastChargePowerMax > 0) {
           const maxDCCurrent = Utils.convertWattToAmp(
             chargingStation, null, transaction.connectorId, transactionCar.carCatalog.fastChargePowerMax * 1000); // Charge capability in Amps
-          customCar.maxCurrentPerPhase = Utils.truncTo((maxDCCurrent / 3), 2); // Charge capability in Amps per phase
+          customCar.maxCurrentPerPhase = Utils.roundTo((maxDCCurrent / 3), 3); // Charge capability in Amps per phase
           customCar.maxCurrent = customCar.maxCurrentPerPhase * 3;
         }
       }
@@ -365,7 +365,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       }
     }
     // Override
-    this.overrideCarWithRuntimeData(chargingStation, transaction, customCar);
+    await this.overrideCarWithRuntimeData(chargingStation, transaction, customCar);
     // Check if CS is DC and calculate real consumption at the grid
     if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC) {
       const connector = Utils.getConnectorFromID(chargingStation, transaction.connectorId);
@@ -382,7 +382,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return customCar;
   }
 
-  private overrideCarWithRuntimeData(chargingStation: ChargingStation, transaction: Transaction, car: OptimizerCar) {
+  private async overrideCarWithRuntimeData(chargingStation: ChargingStation, transaction: Transaction, car: OptimizerCar) {
     // Check if meter value already received with phases used (only on AC stations)
     if (transaction.phasesUsed) {
       const numberOfPhasesInProgress = Utils.getNumberOfUsedPhasesInTransactionInProgress(chargingStation, transaction);
@@ -390,14 +390,18 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       if (numberOfPhasesInProgress !== -1) {
         // Check if sticky limit enabled
         if (this.setting.stickyLimitation) {
-          // Check if Car is consuming energy
-          if (transaction.currentInstantAmps > 0) {
+          const carIsIncreasingConsumption = await this.checkIfCarIsIncreasingConsumption(
+            chargingStation, transaction, CurrentType.AC, car, numberOfPhasesInProgress);
+          if (!carIsIncreasingConsumption) {
+            // Check if Car is consuming energy
+            if (transaction.currentInstantAmps > 0) {
             // Setting limit to the current instant amps with buffer (If it goes above the station limit it will be limited by the optimizer fuse tree)
-            car.maxCurrentPerPhase = Utils.truncTo((transaction.currentInstantAmps / numberOfPhasesInProgress *
-              (1 + (typeof this.setting.limitBufferAC === 'number' ? this.setting.limitBufferAC : 0) / 100)), 4);
-          } else {
+              car.maxCurrentPerPhase = Utils.roundTo((transaction.currentInstantAmps / numberOfPhasesInProgress *
+              (1 + (typeof this.setting.limitBufferAC === 'number' ? this.setting.limitBufferAC : 0) / 100)), 3);
+            } else {
             // When car is not consuming energy limit is set to min Amps
-            car.maxCurrentPerPhase = car.minCurrentPerPhase;
+              car.maxCurrentPerPhase = car.minCurrentPerPhase;
+            }
           }
         }
         car.canLoadPhase1 = transaction.phasesUsed.csPhase1 ? 1 : 0;
@@ -409,11 +413,14 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       // Check if Charging Station is DC
     } else if (Utils.getChargingStationCurrentType(chargingStation, null, transaction.connectorId) === CurrentType.DC
       && transaction.currentInstantWattsDC > 0 && this.setting.stickyLimitation) {
-      // Get Amps from current DC consumption (Watt)
-      const currentInstantAmps = Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transaction.currentInstantWattsDC);
-      // Setting limit to current consumption with buffer (If it goes above the station limit it will be limited by the optimizer fuse tree)
-      car.maxCurrentPerPhase = Utils.truncTo((currentInstantAmps / 3 * (1 + (typeof this.setting.limitBufferDC === 'number' ? this.setting.limitBufferDC : 0) / 100)), 4);
-      car.maxCurrent = car.maxCurrentPerPhase * 3;
+      const carIsIncreasingConsumption = await this.checkIfCarIsIncreasingConsumption(chargingStation, transaction, CurrentType.DC, car);
+      if (!carIsIncreasingConsumption) {
+        // Get Amps from current DC consumption (Watt)
+        const currentInstantAmps = Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transaction.currentInstantWattsDC);
+        // Setting limit to current consumption with buffer (If it goes above the station limit it will be limited by the optimizer fuse tree)
+        car.maxCurrentPerPhase = Utils.roundTo((currentInstantAmps / 3 * (1 + (typeof this.setting.limitBufferDC === 'number' ? this.setting.limitBufferDC : 0) / 100)), 3);
+        car.maxCurrent = car.maxCurrentPerPhase * 3;
+      }
     }
   }
 
@@ -615,42 +622,60 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     if (Utils.getChargingStationCurrentType(chargingStation, null, connector.connectorId) === CurrentType.DC) {
       const chargePoint = Utils.getChargePointFromID(chargingStation, connector.chargePointID);
       if (chargePoint?.efficiency > 0) {
-        return Math.trunc(currentLimit * chargePoint.efficiency / 100) * numberOfConnectedPhase;
+        return Utils.roundTo(currentLimit * chargePoint.efficiency / 100 * numberOfConnectedPhase, 3);
       }
-      return Math.trunc(currentLimit * Constants.DC_CHARGING_STATION_DEFAULT_EFFICIENCY_PERCENT * numberOfConnectedPhase);
+      return Utils.roundTo(currentLimit * Constants.DC_CHARGING_STATION_DEFAULT_EFFICIENCY_PERCENT * numberOfConnectedPhase, 3);
     }
-    return Math.trunc(currentLimit * numberOfConnectedPhase);
+    return Utils.roundTo((currentLimit * numberOfConnectedPhase), 3);
   }
 
-  private async checkIfCarIsIncreasingCharge(chargingStation: ChargingStation, transaction: Transaction,
-    currentDurationFromMidnightMins: number, currentType: CurrentType, numberOfPhasesInProgress: number, car: OptimizerCar): Promise<boolean> {
+  private async checkIfCarIsIncreasingConsumption(chargingStation: ChargingStation, transaction: Transaction, currentType: CurrentType,
+    car: OptimizerCar, numberOfPhasesInProgress?: number): Promise<boolean> {
     // Get the current charging profile from the database
     const currentProfile = await ChargingStationStorage.getChargingProfiles(this.tenantID, { chargingStationIDs: [chargingStation.id],
       connectorID: transaction.connectorId, transactionId: transaction.id }, Constants.DB_PARAMS_MAX_LIMIT);
     // Check if only one charging profile is in place
     if (currentProfile.result.length === 1) {
-      // Get the start slot and the current slot to get the current period of the schedule
-      const startSlot = Math.floor((moment().diff(moment(currentProfile.result[0].profile.chargingSchedule.startSchedule), 'minutes') / 15));
-      const currentSlot = Math.floor(currentDurationFromMidnightMins / 15);
-      // Check if charging profile is expired
-      if (currentSlot - startSlot < currentProfile.result[0].profile.chargingSchedule.chargingSchedulePeriod.length) {
-        // Get current limit and number of phases
-        const currentLimit = currentProfile.result[0].profile.chargingSchedule.chargingSchedulePeriod[currentSlot - startSlot]?.limit;
+      const currentLimit = this.getCurrentSapSmartChargingProfileLimit(currentProfile.result[0]);
+      if (currentLimit > -1) {
         const numberOfPhasesChargingStation = Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId);
-        // Check is buffer is used for AC stations
+        // Check if buffer is used for AC stations
         if (currentType === CurrentType.AC) {
-          if (currentLimit / (1 + Constants.AC_LIMIT_BUFFER_PERCENT / 100) / numberOfPhasesChargingStation < transaction.currentInstantAmps / numberOfPhasesInProgress &&
+          // Get consumption of last optimizer run
+          const currentLimitPerPhase = currentLimit / numberOfPhasesChargingStation;
+          let threshold = currentLimitPerPhase / (1 + this.setting.limitBufferAC / 100);
+          const normalFluctuation = (currentLimitPerPhase - threshold) * 0.2;
+          threshold = threshold + normalFluctuation;
+          // Check if threshold is exceeded
+          if (threshold < transaction.currentInstantAmps / numberOfPhasesInProgress &&
           currentLimit / numberOfPhasesChargingStation < car.maxCurrentPerPhase) {
             return true;
           }
-          // Check is buffer is used for DC stations
+        // Check if buffer is used for DC stations
         } else if (currentType === CurrentType.DC) {
-          if (currentLimit / (1 + Constants.DC_LIMIT_BUFFER_PERCENT / 100) < transaction.currentInstantAmps && currentLimit < car.maxCurrentPerPhase) {
+          // Get consumption of last optimizer run
+          let threshold = currentLimit / (1 + this.setting.limitBufferDC / 100);
+          const normalFluctuation = (currentLimit - threshold) * 0.2;
+          // Add 20% to compensate fluctuation
+          threshold = threshold + normalFluctuation;
+          if (threshold < Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transaction.currentInstantWattsDC) && currentLimit < car.maxCurrentPerPhase) {
             return true;
           }
         }
       }
     }
     return false;
+  }
+
+  private getCurrentSapSmartChargingProfileLimit(currentProfile: ChargingProfile): number {
+    // Get the current slot to get the current period of the schedule
+    const currentSlot = Math.floor((moment().diff(moment(currentProfile.profile.chargingSchedule.startSchedule), 'minutes')) / 15);
+    // Check if charging profile is expired
+    if (currentSlot < currentProfile.profile.chargingSchedule.chargingSchedulePeriod.length) {
+      // Get current limit and number of phases
+      const currentLimit = currentProfile.profile.chargingSchedule.chargingSchedulePeriod[currentSlot]?.limit;
+      return currentLimit;
+    }
+    return -1;
   }
 }
