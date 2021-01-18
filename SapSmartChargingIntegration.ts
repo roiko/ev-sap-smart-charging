@@ -25,6 +25,7 @@ const MODULE_NAME = 'SapSmartChargingIntegration';
 
 export default class SapSmartChargingIntegration extends SmartChargingIntegration<SapSmartChargingSetting> {
   private axiosInstance: AxiosInstance;
+  private currentChargingProfiles: ChargingProfile[];
 
   public constructor(tenantID: string, setting: SapSmartChargingSetting) {
     super(tenantID, setting);
@@ -140,6 +141,16 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   private async buildOptimizerRequest(siteArea: SiteArea, currentTimeSeconds: number, excludedChargingStations?: string[]): Promise<OptimizerChargingProfilesRequest> {
+    // Get current profiles if sticky limitation is enabled
+    if (this.setting.stickyLimitation) {
+      const chargingStationIDs = [];
+      for (const chargingStation of siteArea.chargingStations) {
+        chargingStationIDs.push(chargingStation.id);
+      }
+      const currentChargingProfilesResponse = await ChargingStationStorage.getChargingProfiles(
+        this.tenantID, { chargingStationIDs: chargingStationIDs }, Constants.DB_PARAMS_MAX_LIMIT);
+      this.currentChargingProfiles = currentChargingProfilesResponse.result;
+    }
     // Instantiate initial arrays for request
     const cars: OptimizerCar[] = [];
     const carConnectorAssignments: OptimizerCarConnectorAssignment[] = [];
@@ -632,11 +643,13 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   private async checkIfCarIsIncreasingConsumption(chargingStation: ChargingStation, transaction: Transaction, currentType: CurrentType,
     car: OptimizerCar, numberOfPhasesInProgress?: number): Promise<boolean> {
     // Get the current charging profile from the database
-    const currentProfile = await ChargingStationStorage.getChargingProfiles(this.tenantID, { chargingStationIDs: [chargingStation.id],
-      connectorID: transaction.connectorId, transactionId: transaction.id }, Constants.DB_PARAMS_MAX_LIMIT);
+    const currentProfile = this.currentChargingProfiles.filter((chargingProfile) =>
+      chargingProfile.profile.transactionId === transaction.id &&
+      chargingProfile.chargingStationID === transaction.chargeBoxID &&
+      chargingProfile.connectorID === transaction.connectorId);
     // Check if only one charging profile is in place
-    if (currentProfile.result.length === 1) {
-      const currentLimit = this.getCurrentSapSmartChargingProfileLimit(currentProfile.result[0]);
+    if (currentProfile.length === 1) {
+      const currentLimit = this.getCurrentSapSmartChargingProfileLimit(currentProfile[0]);
       if (currentLimit > -1) {
         const numberOfPhasesChargingStation = Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId);
         // Check if buffer is used for AC stations
