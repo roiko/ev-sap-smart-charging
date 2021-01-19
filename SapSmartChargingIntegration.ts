@@ -669,12 +669,11 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         // Add the normal fluctuation to the threshold
         threshold = threshold + normalFluctuation;
         // Check if threshold is exceeded
-        if (threshold < transaction.currentInstantAmps / numberOfPhasesInProgress &&
-          currentLimit / numberOfPhasesChargingStation < car.maxCurrentPerPhase) {
+        if (threshold < transaction.currentInstantAmps / numberOfPhasesInProgress) {
           // If yes the car increased its consumption
           return true;
         }
-        // Check if buffer is used for DC stations
+      // Check if buffer is used for DC stations
       } else if (currentType === CurrentType.DC) {
         // Get amps of the car when the optimizer was called the last time
         let threshold = currentLimit / (1 + this.setting.limitBufferDC / 100);
@@ -682,7 +681,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         const normalFluctuation = (currentLimit - threshold) * 0.2;
         // Add the normal fluctuation to the threshold
         threshold = threshold + normalFluctuation;
-        if (threshold < Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transaction.currentInstantWattsDC) && currentLimit < car.maxCurrentPerPhase) {
+        if (threshold < Utils.convertWattToAmp(chargingStation, null, transaction.connectorId, transaction.currentInstantWattsDC)) {
           // If yes the car increased its consumption
           return true;
         }
