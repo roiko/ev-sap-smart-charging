@@ -44,7 +44,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       // Build Optimizer request
       const request = await this.buildOptimizerRequest(siteArea, 0);
       // Call Optimizer
-      const optimizerURL = this.buildOptimizerUrl(siteArea);
+      const optimizerURL = await this.buildOptimizerUrl(siteArea);
       await this.axiosInstance.post(optimizerURL, request, {
         headers: {
           Accept: 'application/json',
@@ -71,7 +71,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     siteArea.chargingStations = chargingStations.result;
     const request = await this.buildOptimizerRequest(siteArea, currentDurationFromMidnightSeconds, excludedChargingStations);
     // Call optimizer
-    const url = this.buildOptimizerUrl(siteArea);
+    const url = await this.buildOptimizerUrl(siteArea);
     // Check at least one car
     if (request.state.cars.length === 0) {
       Logging.logDebug({
@@ -120,13 +120,13 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return chargingProfiles;
   }
 
-  private buildOptimizerUrl(siteArea: SiteArea): string {
+  private async buildOptimizerUrl(siteArea: SiteArea): Promise<string> {
     // Build URL
     const url = this.setting.optimizerUrl;
     const user = this.setting.user;
     let password = this.setting.password;
     if (password) {
-      password = Cypher.decrypt(password);
+      password = await Cypher.decrypt(this.tenantID, password);
     }
     if (!url || !user || !password) {
       throw new BackendError({
