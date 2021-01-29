@@ -143,6 +143,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   private async buildOptimizerRequest(siteArea: SiteArea, currentTimeSeconds: number, excludedChargingStations?: string[]): Promise<OptimizerChargingProfilesRequest> {
     // Get and set current profiles if sticky limitation is enabled
     if (this.setting.stickyLimitation) {
+      // TODO: Store the Site Area ID in the DB profiles and use siteAreaIDs param in this DB request.
       // Get all the charging station IDs from the site area
       const chargingStationIDs = [];
       for (const chargingStation of siteArea.chargingStations) {
@@ -661,15 +662,15 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       const numberOfPhasesChargingStation = Utils.getNumberOfConnectedPhases(chargingStation, null, transaction.connectorId);
       // Check if buffer is used for AC stations
       if (currentType === CurrentType.AC) {
-        const currentLimitPerPhase = currentLimit / numberOfPhasesChargingStation;
+        const currentLimitPerPhase = currentLimit / numberOfPhasesChargingStation; // 32A
         // Get amps per phase of the car when the optimizer was called the last time
-        let threshold = currentLimitPerPhase / (1 + this.setting.limitBufferAC / 100);
+        let threshold = currentLimitPerPhase / (1 + this.setting.limitBufferAC / 100); // limitBufferAC = 20% of 32A => 26A
         // Use difference between threshold and last consumption multiplied by 20% to eliminate small fluctuations of the car in the charge
-        const normalFluctuation = (currentLimitPerPhase - threshold) * 0.2;
+        const normalFluctuation = (currentLimitPerPhase - threshold) * 0.2; // 32A - 26A = 6A * 0.2 = 1.2A
         // Add the normal fluctuation to the threshold
-        threshold = threshold + normalFluctuation;
+        threshold = threshold + normalFluctuation; // 26A + 1.2A = 27.2
         // Check if threshold is exceeded
-        if (threshold < transaction.currentInstantAmps / numberOfPhasesInProgress) {
+        if (threshold < (transaction.currentInstantAmps / numberOfPhasesInProgress)) {
           // If yes the car increased its consumption
           return true;
         }
