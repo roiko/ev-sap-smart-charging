@@ -664,7 +664,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       if (currentType === CurrentType.AC) {
         const currentLimitPerPhase = currentLimit / numberOfPhasesChargingStation; // 32A
         // Get amps per phase of the car when the optimizer was called the last time
-        let threshold = currentLimitPerPhase / (1 + this.setting.limitBufferAC / 100); // limitBufferAC = 20% of 32A => 26A
+        let threshold = currentLimitPerPhase / (1 + this.setting.limitBufferAC / 100); // pragma limitBufferAC = 20% of 32A => 26A
         // Use difference between threshold and last consumption multiplied by 20% to eliminate small fluctuations of the car in the charge
         const normalFluctuation = (currentLimitPerPhase - threshold) * 0.2; // 32A - 26A = 6A * 0.2 = 1.2A
         // Add the normal fluctuation to the threshold
