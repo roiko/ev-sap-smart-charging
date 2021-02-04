@@ -2,8 +2,8 @@ import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, C
 import ChargingStation, { ChargePoint, Connector, CurrentType, StaticLimitAmps } from '../../../types/ChargingStation';
 import { ConnectorAmps, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
 
-import AssetFactory from '../../asset/AssetFactory';
 import AssetStorage from '../../../storage/mongodb/AssetStorage';
+import { AssetType } from '../../../types/Asset';
 import AxiosFactory from '../../../utils/AxiosFactory';
 import { AxiosInstance } from 'axios';
 import BackendError from '../../../exception/BackendError';
@@ -12,10 +12,7 @@ import CarStorage from '../../../storage/mongodb/CarStorage';
 import { ChargePointStatus } from '../../../types/ocpp/OCPPServer';
 import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
 import Constants from '../../../utils/Constants';
-import Consumption from '../../../types/Consumption';
 import Cypher from '../../../utils/Cypher';
-import LockingHelper from '../../../locking/LockingHelper';
-import LockingManager from '../../../locking/LockingManager';
 import Logging from '../../../utils/Logging';
 import { SapSmartChargingSetting } from '../../../types/Setting';
 import { ServerAction } from '../../../types/Server';
@@ -274,8 +271,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     const originalSiteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     let siteMaxAmps = siteArea.maximumPower / siteArea.voltage;
 
-    const assetConsumptionInAmp = await this.getAssetConsumptionInAmps(siteArea.id);
-    siteMaxAmps = siteMaxAmps - assetConsumptionInAmp;
     for (let i = siteArea.chargingStations.length - 1; i >= 0; i--) {
       const chargingStation = siteArea.chargingStations[i];
       const chargePointIDsAlreadyProcessed = [];
@@ -328,6 +323,9 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       });
       // Limit Site Area power
       siteArea.maximumPower = siteMaxAmps * siteArea.voltage;
+      // Take Assets into account
+      // const assetConsumptionInWatts = await this.getAssetConsumptionInAmps(siteArea.id);
+      // siteArea.maximumPower = siteArea.maximumPower - assetConsumptionInWatts;
     }
   }
 
@@ -717,47 +715,34 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     const tenant = await TenantStorage.getTenant(this.tenantID);
     if (Utils.isTenantComponentActive(tenant, TenantComponents.ASSET)) {
       // Create cumulated consumption helper
-      let cumulatedConsumptionAmps;
-      // Get dynamic assets only
-      const dynamicAssets = await AssetStorage.getAssets(tenant.id,
+      let cumulatedConsumptionWatt;
+      // Get dynamic assets first
+      const assets = await AssetStorage.getAssets(tenant.id,
         {
           siteAreaIDs:[siteAreaId],
-          dynamicOnly: true,
-          withSiteArea: true
         },
         Constants.DB_PARAMS_MAX_LIMIT
       );
-      // Process them
-      for (const asset of dynamicAssets.result) {
-        const assetLock = await LockingHelper.createAssetRetrieveConsumptionsLock(tenant.id, asset);
-        if (assetLock) {
-          try {
-            // Get asset factory
-            const assetImpl = await AssetFactory.getAssetImpl(tenant.id, asset.connectionID);
-            if (assetImpl) {
-              // Retrieve Consumption
-              const assetConsumption = await assetImpl.retrieveConsumption(asset);
-              // Create Consumption
-              const consumption: Consumption = {
-                startedAt: asset.lastConsumption.timestamp,
-                endedAt: new Date(),
-                assetID: asset.id,
-                cumulatedConsumptionWh: asset.currentConsumptionWh,
-                cumulatedConsumptionAmps: Math.floor(asset.currentConsumptionWh / 230),
-                instantAmps: asset.currentInstantAmps,
-                instantWatts: asset.currentInstantWatts,
-              };
-              cumulatedConsumptionAmps = cumulatedConsumptionAmps + assetConsumption.currentInstantAmps;
+      for (const asset of assets.result) {
+        if (asset.dynamicAsset) {
+          const fluctuation = (asset.staticValueWatt * (asset.fluctuationPercent / 100));
+          let consumptionSaveValue = 0;
+          // Check if current consumption is up to date
+          if (moment(asset.lastConsumption.timestamp).diff(moment()) < 2) {
+            if (asset.currentInstantWatts > 0) {
+              consumptionSaveValue = (asset.currentInstantWatts + fluctuation < asset.staticValueWatt ? asset.currentInstantWatts + fluctuation : asset.staticValueWatt);
+            } else if (asset.currentInstantWatts < 0) {
+              consumptionSaveValue = (asset.currentInstantWatts + fluctuation < 0 ? asset.currentInstantWatts + fluctuation : 0);
             }
-          } catch (error) {
-            // Log error
-            Logging.logActionExceptionMessage(tenant.id, ServerAction.RETRIEVE_ASSET_CONSUMPTION, error);
-          } finally {
-            // Release the lock
-            await LockingManager.release(assetLock);
+          } else {
+            consumptionSaveValue = asset.staticValueWatt;
           }
+          cumulatedConsumptionWatt = cumulatedConsumptionWatt + consumptionSaveValue;
+        } else if (asset.assetType === AssetType.CONSUMPTION || asset.assetType === AssetType.CONSUMPTION_AND_PRODUCTION) {
+          cumulatedConsumptionWatt = cumulatedConsumptionWatt + asset.staticValueWatt;
         }
       }
+      return cumulatedConsumptionWatt;
     }
     return 0;
   }
