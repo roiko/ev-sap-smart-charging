@@ -745,10 +745,10 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
           let consumptionSaveValue = 0;
           // Check if current consumption is up to date
           if ((moment().diff(moment(asset.lastConsumption.timestamp), 'minutes')) < 2) {
-            if (asset.currentInstantWatts > 0 && asset.assetType === AssetType.CONSUMPTION) {
+            if (asset.currentInstantWatts > 0) {
               // Ensure consumption does not exceed static value
               consumptionSaveValue = ((asset.currentInstantWatts + fluctuation < asset.staticValueWatt) ? (asset.currentInstantWatts + fluctuation) : asset.staticValueWatt);
-            } else if (asset.currentInstantWatts < 0 && asset.assetType === AssetType.PRODUCTION) {
+            } else if (asset.currentInstantWatts < 0) {
               // Ensure production does not exceed 0
               consumptionSaveValue = ((asset.currentInstantWatts + fluctuation < 0) ? (asset.currentInstantWatts + fluctuation) : 0);
             }
@@ -756,7 +756,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
             consumptionSaveValue = asset.staticValueWatt;
           }
           cumulatedConsumptionWatt += consumptionSaveValue;
-        } else if (asset.assetType === AssetType.CONSUMPTION) {
+        } else if (asset.assetType === AssetType.CONSUMPTION || AssetType.CONSUMPTION_AND_PRODUCTION) {
           // If not dynamic add static consumption for consuming assets
           cumulatedConsumptionWatt += asset.staticValueWatt;
         }
