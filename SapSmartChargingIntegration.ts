@@ -268,6 +268,24 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   private async adjustSiteLimitation(siteArea: SiteArea, excludedChargingStations?: string[]) {
+
+    // Take Assets into account
+    const assetConsumptionInWatts = await this.getAssetConsumptionInWatts(siteArea.id);
+    // Found unsupported chargers
+    if (siteArea.maximumPower !== siteArea.maximumPower - assetConsumptionInWatts) {
+      Logging.logDebug({
+        tenantID: this.tenantID,
+        source: Constants.CENTRAL_SERVER,
+        action: ServerAction.SMART_CHARGING,
+        message: `${siteArea.name} > limit of ${siteArea.maximumPower} W has been lowered to ${Math.round(siteArea.maximumPower - assetConsumptionInWatts)} W due Asset Consumption`,
+        module: MODULE_NAME, method: 'adjustSiteLimitation',
+        detailedMessages: { siteArea }
+      });
+      // Limit Site Area power
+      siteArea.maximumPower = siteArea.maximumPower - assetConsumptionInWatts;
+    }
+
+    // Handle charging stations
     const originalSiteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     let siteMaxAmps = siteArea.maximumPower / siteArea.voltage;
 
@@ -323,9 +341,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       });
       // Limit Site Area power
       siteArea.maximumPower = siteMaxAmps * siteArea.voltage;
-      // Take Assets into account
-      // const assetConsumptionInWatts = await this.getAssetConsumptionInAmps(siteArea.id);
-      // siteArea.maximumPower = siteArea.maximumPower - assetConsumptionInWatts;
     }
   }
 
@@ -711,11 +726,11 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return -1;
   }
 
-  private async getAssetConsumptionInAmps(siteAreaId: string): Promise<number> {
+  private async getAssetConsumptionInWatts(siteAreaId: string): Promise<number> {
     const tenant = await TenantStorage.getTenant(this.tenantID);
     if (Utils.isTenantComponentActive(tenant, TenantComponents.ASSET)) {
       // Create cumulated consumption helper
-      let cumulatedConsumptionWatt;
+      let cumulatedConsumptionWatt = 0;
       // Get dynamic assets first
       const assets = await AssetStorage.getAssets(tenant.id,
         {
@@ -728,17 +743,17 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
           const fluctuation = (asset.staticValueWatt * (asset.fluctuationPercent / 100));
           let consumptionSaveValue = 0;
           // Check if current consumption is up to date
-          if (moment(asset.lastConsumption.timestamp).diff(moment()) < 2) {
-            if (asset.currentInstantWatts > 0) {
-              consumptionSaveValue = (asset.currentInstantWatts + fluctuation < asset.staticValueWatt ? asset.currentInstantWatts + fluctuation : asset.staticValueWatt);
-            } else if (asset.currentInstantWatts < 0) {
-              consumptionSaveValue = (asset.currentInstantWatts + fluctuation < 0 ? asset.currentInstantWatts + fluctuation : 0);
+          if ((moment().diff(moment(asset.lastConsumption.timestamp), 'minutes')) < 2) {
+            if (asset.currentInstantWatts > 0 && asset.assetType === AssetType.CONSUMPTION) {
+              consumptionSaveValue = ((asset.currentInstantWatts + fluctuation < asset.staticValueWatt) ? (asset.currentInstantWatts + fluctuation) : asset.staticValueWatt);
+            } else if (asset.currentInstantWatts < 0 && asset.assetType === AssetType.PRODUCTION) {
+              consumptionSaveValue = ((asset.currentInstantWatts + fluctuation < 0) ? (asset.currentInstantWatts + fluctuation) : 0);
             }
           } else {
             consumptionSaveValue = asset.staticValueWatt;
           }
           cumulatedConsumptionWatt = cumulatedConsumptionWatt + consumptionSaveValue;
-        } else if (asset.assetType === AssetType.CONSUMPTION || asset.assetType === AssetType.CONSUMPTION_AND_PRODUCTION) {
+        } else if (asset.assetType === AssetType.CONSUMPTION) {
           cumulatedConsumptionWatt = cumulatedConsumptionWatt + asset.staticValueWatt;
         }
       }
