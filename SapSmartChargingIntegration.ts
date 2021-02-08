@@ -752,7 +752,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
               // Ensure production does not exceed 0
               consumptionSaveValue = ((asset.currentInstantWatts + fluctuation < 0) ? (asset.currentInstantWatts + fluctuation) : 0);
             }
-          } else {
+          } else if (asset.assetType === AssetType.CONSUMPTION || AssetType.CONSUMPTION_AND_PRODUCTION) {
             consumptionSaveValue = asset.staticValueWatt;
           }
           cumulatedConsumptionWatt += consumptionSaveValue;
