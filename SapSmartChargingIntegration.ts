@@ -268,7 +268,6 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   private async adjustSiteLimitation(siteArea: SiteArea, excludedChargingStations?: string[]) {
-
     // Take Assets into account
     const assetConsumptionInWatts = await this.getAssetConsumptionInWatts(siteArea.id);
     if (siteArea.maximumPower !== siteArea.maximumPower - assetConsumptionInWatts) {
@@ -283,11 +282,9 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       // Limit Site Area power
       siteArea.maximumPower = siteArea.maximumPower - assetConsumptionInWatts;
     }
-
     // Handle charging stations
     const originalSiteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     let siteMaxAmps = siteArea.maximumPower / siteArea.voltage;
-
     for (let i = siteArea.chargingStations.length - 1; i >= 0; i--) {
       const chargingStation = siteArea.chargingStations[i];
       const chargePointIDsAlreadyProcessed = [];
