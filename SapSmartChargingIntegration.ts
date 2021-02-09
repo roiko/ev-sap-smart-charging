@@ -2,6 +2,8 @@ import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, C
 import ChargingStation, { ChargePoint, Connector, CurrentType, StaticLimitAmps } from '../../../types/ChargingStation';
 import { ConnectorAmps, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
 
+import AssetStorage from '../../../storage/mongodb/AssetStorage';
+import { AssetType } from '../../../types/Asset';
 import AxiosFactory from '../../../utils/AxiosFactory';
 import { AxiosInstance } from 'axios';
 import BackendError from '../../../exception/BackendError';
@@ -16,6 +18,8 @@ import { SapSmartChargingSetting } from '../../../types/Setting';
 import { ServerAction } from '../../../types/Server';
 import SiteArea from '../../../types/SiteArea';
 import SmartChargingIntegration from '../SmartChargingIntegration';
+import TenantComponents from '../../../types/TenantComponents';
+import TenantStorage from '../../../storage/mongodb/TenantStorage';
 import Transaction from '../../../types/Transaction';
 import TransactionStorage from '../../../storage/mongodb/TransactionStorage';
 import Utils from '../../../utils/Utils';
@@ -161,7 +165,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     let fuseID = 0;
     this.checkIfSiteAreaIsValid(siteArea);
     // Adjust site limitation
-    this.adjustSiteLimitation(siteArea, excludedChargingStations);
+    await this.adjustSiteLimitation(siteArea, excludedChargingStations);
     // Create root fuse
     const siteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     const siteMaxAmpsPerPhase = siteMaxAmps / siteArea.numberOfPhases;
@@ -263,7 +267,22 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     return transaction;
   }
 
-  private adjustSiteLimitation(siteArea: SiteArea, excludedChargingStations?: string[]) {
+  private async adjustSiteLimitation(siteArea: SiteArea, excludedChargingStations?: string[]) {
+    // Take Assets into account
+    const assetConsumptionInWatts = await this.getAssetConsumptionInWatts(siteArea.id);
+    if (siteArea.maximumPower !== siteArea.maximumPower - assetConsumptionInWatts) {
+      Logging.logDebug({
+        tenantID: this.tenantID,
+        source: Constants.CENTRAL_SERVER,
+        action: ServerAction.SMART_CHARGING,
+        message: `${siteArea.name} > limit of ${siteArea.maximumPower} W has been lowered to ${Math.round(siteArea.maximumPower - assetConsumptionInWatts)} W due Asset Consumption`,
+        module: MODULE_NAME, method: 'adjustSiteLimitation',
+        detailedMessages: { siteArea }
+      });
+      // Limit Site Area power
+      siteArea.maximumPower = siteArea.maximumPower - assetConsumptionInWatts;
+    }
+    // Handle charging stations
     const originalSiteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     let siteMaxAmps = siteArea.maximumPower / siteArea.voltage;
     for (let i = siteArea.chargingStations.length - 1; i >= 0; i--) {
@@ -701,5 +720,46 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       return currentLimit;
     }
     return -1;
+  }
+
+  private async getAssetConsumptionInWatts(siteAreaId: string): Promise<number> {
+    const tenant = await TenantStorage.getTenant(this.tenantID);
+    if (Utils.isTenantComponentActive(tenant, TenantComponents.ASSET)) {
+      // Create cumulated consumption helper
+      let cumulatedConsumptionWatt = 0;
+      // Get assets
+      const assets = await AssetStorage.getAssets(tenant.id,
+        {
+          siteAreaIDs:[siteAreaId],
+        },
+        Constants.DB_PARAMS_MAX_LIMIT
+      );
+      for (const asset of assets.result) {
+        // Handle dynamic assets
+        if (asset.dynamicAsset) {
+          // Calculate fluctuation from static value
+          const fluctuation = (asset.staticValueWatt * (asset.fluctuationPercent / 100));
+          let consumptionSaveValue = 0;
+          // Check if current consumption is up to date
+          if ((moment().diff(moment(asset.lastConsumption.timestamp), 'minutes')) < 2) {
+            if (asset.currentInstantWatts > 0) {
+              // Ensure consumption does not exceed static value
+              consumptionSaveValue = ((asset.currentInstantWatts + fluctuation < asset.staticValueWatt) ? (asset.currentInstantWatts + fluctuation) : asset.staticValueWatt);
+            } else if (asset.currentInstantWatts < 0) {
+              // Ensure production does not exceed 0
+              consumptionSaveValue = ((asset.currentInstantWatts + fluctuation < 0) ? (asset.currentInstantWatts + fluctuation) : 0);
+            }
+          } else if (asset.assetType === AssetType.CONSUMPTION || AssetType.CONSUMPTION_AND_PRODUCTION) {
+            consumptionSaveValue = asset.staticValueWatt;
+          }
+          cumulatedConsumptionWatt += consumptionSaveValue;
+        } else if (asset.assetType === AssetType.CONSUMPTION || AssetType.CONSUMPTION_AND_PRODUCTION) {
+          // If not dynamic add static consumption for consuming assets
+          cumulatedConsumptionWatt += asset.staticValueWatt;
+        }
+      }
+      return cumulatedConsumptionWatt;
+    }
+    return 0;
   }
 }
