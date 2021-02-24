@@ -735,27 +735,29 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         Constants.DB_PARAMS_MAX_LIMIT
       );
       for (const asset of assets.result) {
-        // Handle dynamic assets
-        if (asset.dynamicAsset) {
+        if (!asset.excludeFromSmartCharging) {
+          // Handle dynamic assets
+          if (asset.dynamicAsset) {
           // Calculate fluctuation from static value
-          const fluctuation = (asset.staticValueWatt * (asset.fluctuationPercent / 100));
-          let consumptionSaveValue = 0;
-          // Check if current consumption is up to date
-          if ((moment().diff(moment(asset.lastConsumption.timestamp), 'minutes')) < 2) {
-            if (asset.currentInstantWatts > 0) {
+            const fluctuation = (asset.staticValueWatt * (asset.fluctuationPercent / 100));
+            let consumptionSaveValue = 0;
+            // Check if current consumption is up to date
+            if ((moment().diff(moment(asset.lastConsumption.timestamp), 'minutes')) < 2) {
+              if (asset.currentInstantWatts > 0) {
               // Ensure consumption does not exceed static value
-              consumptionSaveValue = ((asset.currentInstantWatts + fluctuation < asset.staticValueWatt) ? (asset.currentInstantWatts + fluctuation) : asset.staticValueWatt);
-            } else if (asset.currentInstantWatts < 0) {
+                consumptionSaveValue = ((asset.currentInstantWatts + fluctuation < asset.staticValueWatt) ? (asset.currentInstantWatts + fluctuation) : asset.staticValueWatt);
+              } else if (asset.currentInstantWatts < 0) {
               // Ensure production does not exceed 0
-              consumptionSaveValue = ((asset.currentInstantWatts + fluctuation < 0) ? (asset.currentInstantWatts + fluctuation) : 0);
+                consumptionSaveValue = ((asset.currentInstantWatts + fluctuation < 0) ? (asset.currentInstantWatts + fluctuation) : 0);
+              }
+            } else if (asset.assetType === AssetType.CONSUMPTION || AssetType.CONSUMPTION_AND_PRODUCTION) {
+              consumptionSaveValue = asset.staticValueWatt;
             }
+            cumulatedConsumptionWatt += consumptionSaveValue;
           } else if (asset.assetType === AssetType.CONSUMPTION || AssetType.CONSUMPTION_AND_PRODUCTION) {
-            consumptionSaveValue = asset.staticValueWatt;
-          }
-          cumulatedConsumptionWatt += consumptionSaveValue;
-        } else if (asset.assetType === AssetType.CONSUMPTION || AssetType.CONSUMPTION_AND_PRODUCTION) {
           // If not dynamic add static consumption for consuming assets
-          cumulatedConsumptionWatt += asset.staticValueWatt;
+            cumulatedConsumptionWatt += asset.staticValueWatt;
+          }
         }
       }
       return cumulatedConsumptionWatt;
