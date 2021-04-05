@@ -558,8 +558,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   private buildChargingStationFuse(fuseID: number,
-    sumConnectorAmperagePhase1: number, sumConnectorAmperagePhase2: number, sumConnectorAmperagePhase3: number,
-    chargingStationConnectorsFuse: OptimizerChargingStationConnectorFuse[]): OptimizerChargingStationFuse {
+      sumConnectorAmperagePhase1: number, sumConnectorAmperagePhase2: number, sumConnectorAmperagePhase3: number,
+      chargingStationConnectorsFuse: OptimizerChargingStationConnectorFuse[]): OptimizerChargingStationFuse {
     // Each charging station can have multiple connectors (= charge points)
     // A charging station in the optimizer is modelled as a 'fuse'
     // A charging station's connectors are modelled as its 'children'
@@ -665,7 +665,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
   }
 
   private checkIfCarIsIncreasingConsumption(chargingStation: ChargingStation, transaction: Transaction, currentType: CurrentType,
-    car: OptimizerCar, numberOfPhasesInProgress?: number): boolean {
+      car: OptimizerCar, numberOfPhasesInProgress?: number): boolean {
     // Get the current charging profile for the current car
     const currentProfile = this.currentChargingProfiles.filter((chargingProfile) =>
       chargingProfile.profile.transactionId === transaction.id &&
