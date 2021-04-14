@@ -1,5 +1,5 @@
 import { ChargingProfile, ChargingProfileKindType, ChargingProfilePurposeType, ChargingRateUnitType, ChargingSchedule, Profile } from '../../../types/ChargingProfile';
-import ChargingStation, { ChargePoint, Connector, CurrentType, StaticLimitAmps } from '../../../types/ChargingStation';
+import ChargingStation, { ChargePoint, Connector, CurrentType, StaticLimitAmps, Voltage } from '../../../types/ChargingStation';
 import { ConnectorAmps, OptimizerCar, OptimizerCarConnectorAssignment, OptimizerChargingProfilesRequest, OptimizerChargingStationConnectorFuse, OptimizerChargingStationFuse, OptimizerFuse, OptimizerResult } from '../../../types/Optimizer';
 
 import AssetStorage from '../../../storage/mongodb/AssetStorage';
@@ -42,7 +42,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       maximumPower: 10000,
       chargingStations: [],
       numberOfPhases: 3,
-      voltage: 230
+      voltage: Voltage.VOLTAGE_230
     } as SiteArea;
     try {
       // Build Optimizer request
@@ -78,7 +78,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     const url = await this.buildOptimizerUrl(siteArea);
     // Check at least one car
     if (request.state.cars.length === 0) {
-      Logging.logDebug({
+      await Logging.logDebug({
         tenantID: this.tenantID,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.SMART_CHARGING,
@@ -88,7 +88,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
       });
       return;
     }
-    Logging.logDebug({
+    await Logging.logDebug({
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.SMART_CHARGING,
@@ -102,7 +102,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         Accept: 'application/json',
       }
     });
-    Logging.logDebug({
+    await Logging.logDebug({
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.SMART_CHARGING,
@@ -113,7 +113,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     // Build charging profiles from result
     const chargingProfiles = await this.buildChargingProfilesFromOptimizerResponse(
       siteArea, response.data, currentDurationFromMidnightSeconds / 60);
-    Logging.logDebug({
+    await Logging.logDebug({
       tenantID: this.tenantID,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.SMART_CHARGING,
@@ -271,7 +271,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     // Take Assets into account
     const assetConsumptionInWatts = await this.getAssetConsumptionInWatts(siteArea.id);
     if (siteArea.maximumPower !== siteArea.maximumPower - assetConsumptionInWatts) {
-      Logging.logDebug({
+      await Logging.logDebug({
         tenantID: this.tenantID,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.SMART_CHARGING,
@@ -327,7 +327,7 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
     }
     // Found unsupported chargers
     if (siteMaxAmps !== originalSiteMaxAmps) {
-      Logging.logDebug({
+      await Logging.logDebug({
         tenantID: this.tenantID,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.SMART_CHARGING,
