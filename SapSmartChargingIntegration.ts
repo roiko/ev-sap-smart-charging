@@ -140,7 +140,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         module: MODULE_NAME, method: 'getChargingProfiles',
       });
     }
-    const requestUrl = url.slice(0, 8) + user + ':' + password + '@' + url.slice(8);
+    const protocolEnd = url.indexOf('https://') === 0 ? 8 : 7;
+    const requestUrl = url.slice(0, protocolEnd) + user + ':' + password + '@' + url.slice(protocolEnd);
     return requestUrl;
   }
 
