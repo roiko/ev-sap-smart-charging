@@ -23,6 +23,7 @@ import TenantStorage from '../../../storage/mongodb/TenantStorage';
 import Transaction from '../../../types/Transaction';
 import TransactionStorage from '../../../storage/mongodb/TransactionStorage';
 import Utils from '../../../utils/Utils';
+import { ServerProtocol } from '../../../types/Server';
 import moment from 'moment';
 
 const MODULE_NAME = 'SapSmartChargingIntegration';
@@ -140,8 +141,8 @@ export default class SapSmartChargingIntegration extends SmartChargingIntegratio
         module: MODULE_NAME, method: 'getChargingProfiles',
       });
     }
-    const protocolEnd = url.indexOf('https://') === 0 ? 8 : 7;
-    const requestUrl = url.slice(0, protocolEnd) + user + ':' + password + '@' + url.slice(protocolEnd);
+    const indexProtocolStringEnd = url.startsWith(ServerProtocol.HTTPS) ? 8 : 7;
+    const requestUrl = url.slice(0, indexProtocolStringEnd) + user + ':' + password + '@' + url.slice(indexProtocolStringEnd);
     return requestUrl;
   }
 
